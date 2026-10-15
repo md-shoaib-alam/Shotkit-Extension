@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SnapMaster Studio v5.0</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --panel: #121215;
+      --surface: #18181b;
+      --surface-hover: #27272a;
+      --border: #27272a;
+      --border-light: #3f3f46;
+      --text: #fafafa;
+      --muted: #a1a1aa;
+      --accent: #10b981;
+      --primary-bg: #fafafa;
+      --primary-text: #09090b;
+      --grid-dot: #27272a;
+    }
+    body.light {
+      --bg: #f1f5f9;
+      --panel: #ffffff;
+      --surface: #f8fafc;
+      --surface-hover: #e2e8f0;
+      --border: #e2e8f0;
+      --border-light: #cbd5e1;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #059669;
+      --primary-bg: #0f172a;
+      --primary-text: #ffffff;
+      --grid-dot: #cbd5e1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.15s, color 0.15s;
+    }
+    svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex-shrink: 0;
+    }
+    .topbar {
+      height: 56px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .brand-box {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+    .tools-bar {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: var(--bg);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tool-btn {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      padding: 6px 9px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .tool-btn:hover {
+      color: var(--text);
+      background: var(--surface);
+    }
+    .tool-btn.active {
+      background: var(--surface-hover);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px var(--border-light);
+    }
+    .divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      margin: 0 3px;
+    }
+    input[type="color"] {
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+    }
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dim-pill {
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 5px 9px;
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+    .workspace {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+    .canvas-container {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 36px;
+      background-color: var(--bg);
+      background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    canvas {
+      max-width: 100%;
+      height: auto;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 0 1px var(--border);
+      cursor: crosshair;
+      background: #fff;
+    }
+    .sidebar {
+      width: 330px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .group-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .row-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    input[type="text"], select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 8px;
+      border-radius: 5px;
+      font-size: 12px;
+      width: 100%;
+      outline: none;
+    }
+    input[type="range"] { accent-color: var(--accent); cursor: pointer; }
+    .switch {
+      position: relative; display: inline-block; width: 32px; height: 18px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background-color: var(--border-light); transition: 0.15s; border-radius: 99px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 12px; width: 12px;
+      left: 3px; bottom: 3px; background-color: #fff; transition: 0.15s; border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--accent); }
+    input:checked + .slider:before { transform: translateX(14px); }
+
+    .export-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .btn-export {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-weight: 500;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-export:hover {
+      background: var(--surface-hover);
+      border-color: var(--border-light);
+    }
+    .btn-export.primary {
+      grid-column: span 2;
+      background: var(--primary-bg);
+      color: var(--primary-text);
+      border-color: var(--primary-bg);
+      font-weight: 600;
+      padding: 10px;
+    }
+    .history-drawer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .history-drawer.open { transform: translateX(0); }
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .history-item:hover { border-color: var(--accent); }
+    .history-item img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 4px;
+      background: #000;
+    }
+    .history-meta { font-size: 10px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-box">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <span>SnapMaster Studio</span>
+      <button class="tool-btn" id="btnHistory" title="Toggle Capture History">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>History</span>
+      </button>
+    </div>
+
+    <div class="tools-bar">
+      <button class="tool-btn active" data-tool="pen">
+        <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+        <span>Draw</span>
+      </button>
+      <button class="tool-btn" data-tool="highlight">
+        <svg viewBox="0 0 24 24"><path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
+        <span>Marker</span>
+      </button>
+      <button class="tool-btn" data-tool="rect">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        <span>Box</span>
+      </button>
+      <button class="tool-btn" data-tool="arrow">
+        <svg viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg>
+        <span>Arrow</span>
+      </button>
+      <button class="tool-btn" data-tool="step">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M10 10l2-2"/></svg>
+        <span>Step #</span>
+      </button>
+      <button class="tool-btn" data-tool="loupe">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        <span>2x Zoom</span>
+      </button>
+      <button class="tool-btn" data-tool="text">
+        <svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        <span>Text</span>
+      </button>
+      <button class="tool-btn" data-tool="blur">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Redact</span>
+      </button>
+      <button class="tool-btn" data-tool="crop">
+        <svg viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+        <span>Crop</span>
+      </button>
+      <button class="tool-btn" data-tool="picker">
+        <svg viewBox="0 0 24 24"><path d="M2 22l5-5m9-14l5 5-11 11H5v-5L16 3z"/></svg>
+        <span>HEX Pick</span>
+      </button>
+
+      <div class="divider"></div>
+      <input type="color" id="strokeColor" value="#ef4444" title="Annotation Color">
+      <select id="strokeSize" style="width:74px; padding:4px;">
+        <option value="3">Thin</option>
+        <option value="5" selected>Med</option>
+        <option value="10">Bold</option>
+      </select>
+      <div class="divider"></div>
+      <button class="tool-btn" id="btnUndo" title="Undo (Ctrl+Z)">
+        <svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+      </button>
+      <button class="tool-btn" id="btnClear" title="Reset All">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+      </button>
+    </div>
+
+    <div class="top-right">
+      <div class="dim-pill" id="dimensionsBadge">0 × 0 px</div>
+      <button class="tool-btn" id="btnThemeStudio" title="Switch Light / Dark Mode">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="workspace">
+    <div class="history-drawer" id="historyDrawer">
+      <div class="group-title">Recent Captures (Last 8)</div>
+      <div id="historyList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="editorCanvas"></canvas>
+    </div>
+
+    <div class="sidebar">
+      <div class="group">
+        <div class="group-title">Framing & Studio Backdrop</div>
+        <div class="row">
+          <label class="row-label" for="chkMacFrame">Browser Window Header</label>
+          <label class="switch"><input type="checkbox" id="chkMacFrame"><span class="slider"></span></label>
+        </div>
+        <div class="row">
+          <label class="row-label" for="chkWatermark">Metadata Footer Stamp</label>
+          <label class="switch"><input type="checkbox" id="chkWatermark"><span class="slider"></span></label>
+        </div>
+        <div class="row">
+          <label class="row-label" for="padRange">Backdrop Padding</label>
+          <input type="range" id="padRange" min="0" max="90" value="0" style="width:110px;">
+        </div>
+        <div class="row">
+          <label class="row-label" for="radiusRange">Corner Rounding</label>
+          <input type="range" id="radiusRange" min="0" max="28" value="0" style="width:110px;">
+        </div>
+        <div class="row">
+          <label class="row-label" for="gradientSelect">Backdrop Style</label>
+          <select id="gradientSelect" style="width:135px;">
+            <option value="solid">Solid Color</option>
+            <option value="emerald">Emerald Glow</option>
+            <option value="sunset">Sunset Mesh</option>
+            <option value="ocean">Ocean Breeze</option>
+            <option value="midnight">Midnight Zinc</option>
+            <option value="royal">Royal Violet</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="row-label" for="bgColor">Solid Backdrop Color</label>
+          <input type="color" id="bgColor" value="#18181b">
+        </div>
+        <div class="row">
+          <label class="row-label" for="filterSelect">Color Filter</label>
+          <select id="filterSelect" style="width:135px;">
+            <option value="none">Original</option>
+            <option value="grayscale(100%)">Monochrome</option>
+            <option value="sepia(80%)">Warm Sepia</option>
+            <option value="contrast(135%)">High Contrast</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Output & PDF Mode</div>
+        <input type="text" id="fileNameInput" placeholder="Enter filename...">
+        <div class="row">
+          <label for="pdfModeSelect">PDF Layout</label>
+          <select id="pdfModeSelect" style="width:145px;">
+            <option value="a4">A4 Paginated Pages</option>
+            <option value="single">Single Tall Page</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="qualityRange">Image Quality</label>
+          <span id="qualityVal" style="font-family:monospace; color:var(--muted);">92%</span>
+        </div>
+        <input type="range" id="qualityRange" min="10" max="100" value="92">
+      </div>
+
+      <div class="group">
+        <div class="group-title">Export & Developer Actions</div>
+        <div class="export-grid">
+          <button class="btn-export primary" id="dlPng">Download PNG</button>
+          <button class="btn-export" id="dlJpg">JPEG</button>
+          <button class="btn-export" id="dlWebp">WebP</button>
+          <button class="btn-export" id="dlPdf">Save PDF</button>
+          <button class="btn-export" id="btnCopy">Copy Image</button>
+          <button class="btn-export" id="btnBase64">Copy Base64</button>
+          <button class="btn-export" id="btnPrint">Print</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Capture Metadata</div>
+        <div id="metaInfo" style="font-size:11px; color:var(--muted); line-height:1.5; word-break:break-all;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="studio.js"></script>
+</body>
+</html>

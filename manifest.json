@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "SnapMaster Studio v5.0",
+  "version": "5.0",
+  "description": "Full-page capture, draggable loupes & boxes, HTML/CSS/JSX code exporter, and Light/Dark theme.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "storage",
+    "unlimitedStorage",
+    "clipboardWrite"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "commands": {
+    "capture-full": {
+      "suggested_key": { "default": "Alt+Shift+F" },
+      "description": "Capture Full Page"
+    },
+    "capture-visible": {
+      "suggested_key": { "default": "Alt+Shift+V" },
+      "description": "Capture Visible Viewport"
+    },
+    "capture-region": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Capture Selected Region"
+    }
+  }
+}
