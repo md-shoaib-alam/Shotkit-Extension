@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>SnapMaster Studio v5.0</title>
+  <title>SnapMaster Studio v5.1</title>
   <style>
     :root {
       --bg: #09090b;
@@ -44,261 +44,95 @@
       transition: background 0.15s, color 0.15s;
     }
     svg {
-      width: 15px;
-      height: 15px;
-      stroke: currentColor;
-      stroke-width: 1.75;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      fill: none;
-      flex-shrink: 0;
+      width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.75;
+      stroke-linecap: round; stroke-linejoin: round; fill: none; flex-shrink: 0;
     }
     .topbar {
-      height: 56px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 18px;
-      gap: 12px;
+      height: 56px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 18px; gap: 12px;
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      font-weight: 600;
-      font-size: 14px;
-      white-space: nowrap;
-    }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 14px; white-space: nowrap; }
     .brand-box {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      background: var(--surface);
-      border: 1px solid var(--border-light);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--accent);
+      width: 28px; height: 28px; border-radius: 6px; background: var(--surface);
+      border: 1px solid var(--border-light); display: flex; align-items: center;
+      justify-content: center; color: var(--accent);
     }
     .tools-bar {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      background: var(--bg);
-      padding: 4px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      overflow-x: auto;
+      display: flex; align-items: center; gap: 3px; background: var(--bg);
+      padding: 4px; border-radius: 8px; border: 1px solid var(--border); overflow-x: auto;
     }
     .tool-btn {
-      background: transparent;
-      color: var(--muted);
-      border: none;
-      padding: 6px 9px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      white-space: nowrap;
+      background: transparent; color: var(--muted); border: none; padding: 6px 9px;
+      border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 500;
+      display: flex; align-items: center; gap: 5px; white-space: nowrap;
     }
-    .tool-btn:hover {
-      color: var(--text);
-      background: var(--surface);
-    }
-    .tool-btn.active {
-      background: var(--surface-hover);
-      color: var(--text);
-      box-shadow: inset 0 0 0 1px var(--border-light);
-    }
-    .divider {
-      width: 1px;
-      height: 20px;
-      background: var(--border);
-      margin: 0 3px;
-    }
-    input[type="color"] {
-      width: 24px;
-      height: 24px;
-      border: 1px solid var(--border-light);
-      border-radius: 4px;
-      background: none;
-      cursor: pointer;
-    }
-    .top-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .tool-btn:hover { color: var(--text); background: var(--surface); }
+    .tool-btn.active { background: var(--surface-hover); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-light); }
+    .divider { width: 1px; height: 20px; background: var(--border); margin: 0 3px; }
+    input[type="color"] { width: 24px; height: 24px; border: 1px solid var(--border-light); border-radius: 4px; background: none; cursor: pointer; }
+    .top-right { display: flex; align-items: center; gap: 8px; }
     .dim-pill {
-      font-size: 11px;
-      font-family: ui-monospace, monospace;
-      color: var(--muted);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 5px 9px;
-      border-radius: 5px;
-      white-space: nowrap;
+      font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border); padding: 5px 9px; border-radius: 5px; white-space: nowrap;
     }
-    .workspace {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      position: relative;
-    }
+    .workspace { flex: 1; display: flex; overflow: hidden; position: relative; }
     .canvas-container {
-      flex: 1;
-      overflow: auto;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 36px;
-      background-color: var(--bg);
-      background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
-      background-size: 20px 20px;
+      flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start;
+      padding: 36px; background-color: var(--bg); background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px); background-size: 20px 20px;
     }
-    canvas {
-      max-width: 100%;
-      height: auto;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 0 1px var(--border);
-      cursor: crosshair;
-      background: #fff;
-    }
+    canvas { max-width: 100%; height: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 0 1px var(--border); cursor: crosshair; background: #fff; }
     .sidebar {
-      width: 330px;
-      background: var(--panel);
-      border-left: 1px solid var(--border);
-      padding: 14px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+      width: 330px; background: var(--panel); border-left: 1px solid var(--border);
+      padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
     }
     .group {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 11px;
-      display: flex;
-      flex-direction: column;
-      gap: 9px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 11px; display: flex; flex-direction: column; gap: 9px;
     }
-    .group-title {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      font-weight: 600;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-    }
-    .row-label {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
+    .group-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+    .row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+    .row-label { display: flex; align-items: center; gap: 7px; }
     input[type="text"], select {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 6px 8px;
-      border-radius: 5px;
-      font-size: 12px;
-      width: 100%;
-      outline: none;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 8px; border-radius: 5px; font-size: 12px; width: 100%; outline: none;
     }
     input[type="range"] { accent-color: var(--accent); cursor: pointer; }
-    .switch {
-      position: relative; display: inline-block; width: 32px; height: 18px;
-    }
+    .switch { position: relative; display: inline-block; width: 32px; height: 18px; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; inset: 0;
-      background-color: var(--border-light); transition: 0.15s; border-radius: 99px;
-    }
-    .slider:before {
-      position: absolute; content: ""; height: 12px; width: 12px;
-      left: 3px; bottom: 3px; background-color: #fff; transition: 0.15s; border-radius: 50%;
-    }
+    .slider { position: absolute; cursor: pointer; inset: 0; background-color: var(--border-light); transition: 0.15s; border-radius: 99px; }
+    .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: #fff; transition: 0.15s; border-radius: 50%; }
     input:checked + .slider { background-color: var(--accent); }
     input:checked + .slider:before { transform: translateX(14px); }
 
-    .export-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 7px;
-    }
+    .export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
     .btn-export {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 8px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--bg);
-      color: var(--text);
-      font-weight: 500;
-      font-size: 12px;
-      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px;
+      border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-weight: 500; font-size: 12px; cursor: pointer;
     }
-    .btn-export:hover {
-      background: var(--surface-hover);
-      border-color: var(--border-light);
-    }
-    .btn-export.primary {
-      grid-column: span 2;
-      background: var(--primary-bg);
-      color: var(--primary-text);
-      border-color: var(--primary-bg);
-      font-weight: 600;
-      padding: 10px;
-    }
+    .btn-export:hover { background: var(--surface-hover); border-color: var(--border-light); }
+    .btn-export.primary { grid-column: span 2; background: var(--primary-bg); color: var(--primary-text); border-color: var(--primary-bg); font-weight: 600; padding: 10px; }
+
+    /* Upgraded History Drawer */
     .history-drawer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 280px;
-      background: var(--panel);
-      border-right: 1px solid var(--border);
-      padding: 14px;
-      overflow-y: auto;
-      transform: translateX(-100%);
-      transition: transform 0.2s ease;
-      z-index: 20;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      position: absolute; top: 0; left: 0; bottom: 0; width: 300px; background: var(--panel);
+      border-right: 1px solid var(--border); padding: 14px; overflow-y: auto; transform: translateX(-100%);
+      transition: transform 0.2s ease; z-index: 20; display: flex; flex-direction: column; gap: 10px;
     }
     .history-drawer.open { transform: translateX(0); }
-    .history-item {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+    .history-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; cursor: pointer;
+      display: flex; gap: 10px; align-items: center; transition: 0.12s; position: relative;
     }
-    .history-item:hover { border-color: var(--accent); }
-    .history-item img {
-      width: 100%;
-      height: 90px;
-      object-fit: cover;
-      border-radius: 4px;
-      background: #000;
+    .history-card:hover { border-color: var(--accent); }
+    .history-thumb { width: 64px; height: 50px; object-fit: cover; border-radius: 4px; background: #000; flex-shrink: 0; }
+    .history-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+    .history-title { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+    .history-date { font-size: 9px; color: var(--muted); }
+    .history-del {
+      background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 4px;
+      font-size: 12px; border-radius: 4px;
     }
-    .history-meta { font-size: 10px; color: var(--muted); }
+    .history-del:hover { color: #ef4444; background: var(--surface-hover); }
   </style>
 </head>
 <body>
@@ -309,9 +143,9 @@
         <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </div>
       <span>SnapMaster Studio</span>
-      <button class="tool-btn" id="btnHistory" title="Toggle Capture History">
+      <button class="tool-btn" id="btnHistory" title="Capture History Manager">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span>History</span>
+        <span>History (Manager)</span>
       </button>
     </div>
 
@@ -382,9 +216,13 @@
   </div>
 
   <div class="workspace">
+    <!-- UPGRADED HISTORY DRAWER -->
     <div class="history-drawer" id="historyDrawer">
-      <div class="group-title">Recent Captures (Last 8)</div>
-      <div id="historyList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <div class="group-title">Capture History Manager</div>
+        <button id="btnClearHistory" style="background:transparent; border:none; color:#ef4444; font-size:11px; cursor:pointer;">Clear All</button>
+      </div>
+      <div id="historyList" style="display:flex; flex-direction:column; gap:8px;"></div>
     </div>
 
     <div class="canvas-container">

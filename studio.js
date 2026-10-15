@@ -38,7 +38,7 @@ chrome.storage.local.get(['uiTheme', 'pendingCapture', 'lastCapture', 'captureHi
 
   if (res.pendingCapture) {
     const finalCapture = await buildCaptureFromPayload(res.pendingCapture);
-    const history = (res.captureHistory || []).slice(0, 7);
+    const history = (res.captureHistory || []).slice(0, 9);
     history.unshift(finalCapture);
     await chrome.storage.local.set({
       lastCapture: finalCapture,
@@ -113,20 +113,47 @@ function loadCaptureIntoStudio(cap) {
 
 function renderHistoryList(items) {
   ui.historyList.innerHTML = '';
-  items.forEach((item) => {
+  if (!items || items.length === 0) {
+    ui.historyList.innerHTML = '<div style="font-size:11px; color:var(--muted); text-align:center; padding:10px;">No history captures yet.</div>';
+    return;
+  }
+
+  items.forEach((item, index) => {
     const card = document.createElement('div');
-    card.className = 'history-item';
+    card.className = 'history-card';
     card.innerHTML = `
-      <img src="${item.dataUrl}" alt="thumb">
-      <div class="history-meta">${escapeHtml((item.title || 'Capture').slice(0, 32))}<br>${escapeHtml(item.timestamp || '')}</div>
+      <img src="${item.dataUrl}" class="history-thumb" alt="thumb">
+      <div class="history-info">
+        <div class="history-title">${escapeHtml(item.title || 'Capture')}</div>
+        <div class="history-date">${escapeHtml(item.timestamp || '')}</div>
+      </div>
+      <button class="history-del" title="Delete capture" data-idx="${index}">✕</button>
     `;
-    card.addEventListener('click', () => {
+    
+    card.querySelector('.history-thumb').addEventListener('click', () => {
       loadCaptureIntoStudio(item);
       ui.historyDrawer.classList.remove('open');
     });
+    card.querySelector('.history-info').addEventListener('click', () => {
+      loadCaptureIntoStudio(item);
+      ui.historyDrawer.classList.remove('open');
+    });
+
+    card.querySelector('.history-del').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      items.splice(index, 1);
+      await chrome.storage.local.set({ captureHistory: items });
+      renderHistoryList(items);
+    });
+
     ui.historyList.appendChild(card);
   });
 }
+
+document.getElementById('btnClearHistory').addEventListener('click', async () => {
+  await chrome.storage.local.set({ captureHistory: [] });
+  renderHistoryList([]);
+});
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -487,14 +514,27 @@ window.addEventListener('mouseup', (e) => {
   } else if (currentTool === 'rect' || currentTool === 'blur') {
     if (Math.abs(x - startX) > 3 && Math.abs(y - startY) > 3) {
       annotations.push({ type: currentTool, x: Math.min(startX, x), y: Math.min(startY, y), w: Math.abs(x - startX), h: Math.abs(y - startY), color, size });
+      // BUG FIX: Automatically unselect/reset tool back to Pen after creating a box/blur
+      currentTool = 'pen';
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+      document.querySelector('.tool-btn[data-tool="pen"]').classList.add('active');
     }
   } else if (currentTool === 'arrow') {
     if (Math.hypot(x - startX, y - startY) > 5) {
       annotations.push({ type: 'arrow', x1: startX, y1: startY, x2: x, y2: y, color, size });
+      currentTool = 'pen';
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+      document.querySelector('.tool-btn[data-tool="pen"]').classList.add('active');
     }
   } else if (currentTool === 'loupe') {
     const r = Math.hypot(x - startX, y - startY);
-    if (r > 15) annotations.push({ type: 'loupe', x: startX, y: startY, r, color, size });
+    if (r > 15) {
+      annotations.push({ type: 'loupe', x: startX, y: startY, r, color, size });
+      // BUG FIX: Automatically unselect tool after placing a 2x zoom loupe so it doesn't re-trigger
+      currentTool = 'pen';
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+      document.querySelector('.tool-btn[data-tool="pen"]').classList.add('active');
+    }
   }
   renderComposite();
 });
