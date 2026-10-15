@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "SnapMaster Studio v5.1",
-  "version": "5.1",
+  "name": "SnapMaster Studio v5.2",
+  "version": "5.2",
   "description": "Full-page capture, draggable loupes & boxes, HTML/CSS/JSX code exporter, and Light/Dark theme.",
   "permissions": [
     "activeTab",
