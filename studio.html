@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>SnapMaster Studio v5.2</title>
+    <title>SnapMaster Studio v5.4</title>
     <style>
       :root {
         --bg: #09090b;
@@ -122,6 +122,18 @@
         color: var(--text);
         box-shadow: inset 0 0 0 1px var(--border-light);
       }
+      .tool-btn:disabled,
+      .btn-export:disabled,
+      select:disabled,
+      input:disabled {
+        opacity: 0.32;
+        cursor: not-allowed;
+        pointer-events: none;
+        box-shadow: none;
+      }
+      .tool-btn.active:disabled {
+        pointer-events: none;
+      }
       .divider {
         width: 1px;
         height: 20px;
@@ -176,6 +188,49 @@
           0 0 0 1px var(--border);
         cursor: crosshair;
         background: #fff;
+      }
+      .zoom-pill {
+        position: fixed;
+        left: 28px;
+        bottom: 22px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px 6px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+        z-index: 30;
+      }
+      .zoom-pill button {
+        background: transparent;
+        border: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+        min-width: 30px;
+        height: 26px;
+        padding: 0 6px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .zoom-pill button:hover {
+        background: var(--surface-hover);
+      }
+      .zoom-pill button:disabled {
+        opacity: 0.32;
+        cursor: not-allowed;
+      }
+      #zoomValue {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+      .zoom-sep {
+        width: 1px;
+        height: 16px;
+        background: var(--border);
+        margin: 0 3px;
       }
       .sidebar {
         width: 330px;
@@ -553,8 +608,15 @@
         ></div>
       </div>
 
-      <div class="canvas-container">
+      <div class="canvas-container" id="canvasWrap">
         <canvas id="editorCanvas"></canvas>
+        <div class="zoom-pill" id="zoomPill">
+          <button id="zoomOut" title="Zoom out">−</button>
+          <button id="zoomValue" title="Reset to 100%">Fit</button>
+          <button id="zoomIn" title="Zoom in">+</button>
+          <span class="zoom-sep"></span>
+          <button id="zoomFit" title="Fit to width">⤢</button>
+        </div>
       </div>
 
       <div class="sidebar">

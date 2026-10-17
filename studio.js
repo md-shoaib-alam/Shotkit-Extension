@@ -13,6 +13,7 @@ let stepCounter = 1;
 let selectedAnnotation = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+let imageLoaded = false;
 
 const ui = {
   color: document.getElementById("strokeColor"),
@@ -32,28 +33,85 @@ const ui = {
   metaInfo: document.getElementById("metaInfo"),
   historyDrawer: document.getElementById("historyDrawer"),
   historyList: document.getElementById("historyList"),
+  undo: document.getElementById("btnUndo"),
+  clear: document.getElementById("btnClear"),
+  canvasWrap: document.getElementById("canvasWrap"),
+  zoomValue: document.getElementById("zoomValue"),
+  zoomIn: document.getElementById("zoomIn"),
+  zoomOut: document.getElementById("zoomOut"),
+  zoomFit: document.getElementById("zoomFit"),
 };
+
+const toolButtons = Array.from(
+  document.querySelectorAll(".tool-btn[data-tool]"),
+);
+const exportButtons = [
+  "dlPng",
+  "dlJpg",
+  "dlWebp",
+  "dlPdf",
+  "btnCopy",
+  "btnBase64",
+  "btnPrint",
+].map((id) => document.getElementById(id));
+
+function refreshToolbarState() {
+  for (const el of [...toolButtons, ui.color, ui.size, ...exportButtons]) {
+    el.disabled = !imageLoaded;
+  }
+  const canEdit = imageLoaded && annotations.length > 0;
+  ui.undo.disabled = !canEdit;
+  ui.clear.disabled = !canEdit;
+}
+
+function setBaseImage(src) {
+  imageLoaded = false;
+  renderComposite();
+  baseImage = new Image();
+  baseImage.onload = () => {
+    imageLoaded = true;
+    renderComposite();
+  };
+  baseImage.onerror = () => {
+    ui.dimBadge.textContent = "Image failed to load";
+    renderComposite();
+  };
+  baseImage.src = src;
+}
 
 chrome.storage.local.get(
   ["uiTheme", "pendingCapture", "lastCapture", "captureHistory"],
   async (res) => {
     if (res.uiTheme === "light") document.body.classList.add("light");
 
-    if (res.pendingCapture) {
-      const finalCapture = await buildCaptureFromPayload(res.pendingCapture);
-      const history = (res.captureHistory || []).slice(0, 9);
-      history.unshift(finalCapture);
-      await chrome.storage.local.set({
-        lastCapture: finalCapture,
-        pendingCapture: null,
-        captureHistory: history,
-      });
-      loadCaptureIntoStudio(finalCapture);
-      renderHistoryList(history);
-    } else if (res.lastCapture) {
-      loadCaptureIntoStudio(res.lastCapture);
-      renderHistoryList(res.captureHistory || [res.lastCapture]);
+    try {
+      if (res.pendingCapture) {
+        const finalCapture = await buildCaptureFromPayload(res.pendingCapture);
+        const history = (res.captureHistory || []).slice(0, 9);
+        history.unshift(finalCapture);
+        try {
+          await chrome.storage.local.set({
+            lastCapture: finalCapture,
+            pendingCapture: null,
+            captureHistory: history,
+          });
+        } catch (e) {
+          // History is best-effort; never let it block opening the capture.
+          await chrome.storage.local
+            .set({ lastCapture: finalCapture, pendingCapture: null })
+            .catch(() => {});
+        }
+        loadCaptureIntoStudio(finalCapture);
+        renderHistoryList(history);
+      } else if (res.lastCapture) {
+        loadCaptureIntoStudio(res.lastCapture);
+        const hist = res.captureHistory || [];
+        renderHistoryList(hist.length ? hist : [res.lastCapture], false);
+      }
+    } catch (err) {
+      ui.dimBadge.textContent = "Failed to open capture: " + err.message;
     }
+    refreshToolbarState();
   },
 );
 
@@ -94,23 +152,87 @@ async function buildCaptureFromPayload(payload) {
   if (payload.mode === "stitch") {
     const dpr = payload.dpr || 1;
     const vw = payload.viewportWidth;
-    const vh = payload.viewportHeight;
+    const vh = payload.sliceHeight || payload.viewportHeight;
+    const offsetTop = payload.containerOffsetTop || 0;
     const lastSlice = payload.slices[payload.slices.length - 1];
     const totalHeight = Math.min(
       payload.fullHeight,
-      lastSlice ? lastSlice.y + vh : vh,
+      lastSlice ? offsetTop + lastSlice.y + vh : vh,
     );
     const c = document.createElement("canvas");
-    c.width = vw * dpr;
-    c.height = totalHeight * dpr;
-    const sctx = c.getContext("2d");
 
+    // Past the browser's canvas ceiling toDataURL quietly returns null, so
+    // trade resolution for completeness instead of failing. Studio redraws
+    // this bitmap into an editor canvas that adds up to 180x260 px of
+    // padding, chrome bar and footer, so budget for that growth too.
+    const EDITOR_PAD_W = 180;
+    const EDITOR_PAD_H = 260;
+    const MAX_PIXELS = 100000000;
+    const MAX_SIDE = 32768;
+    let scale = dpr;
+    const fits = (s) =>
+      (vw * s + EDITOR_PAD_W) * (totalHeight * s + EDITOR_PAD_H) <= MAX_PIXELS &&
+      totalHeight * s + EDITOR_PAD_H <= MAX_SIDE &&
+      vw * s + EDITOR_PAD_W <= MAX_SIDE;
+    while (scale > 0.25 && !fits(scale)) {
+      scale /= 2;
+    }
+
+    c.width = Math.round(vw * scale);
+    c.height = Math.round(totalHeight * scale);
+    const sctx = c.getContext("2d");
+    if (!sctx) throw new Error("Canvas too large to render");
+
+    // A slice is the whole viewport. The scrolling band sits at
+    // `offsetTop` inside it and holds `sliceHeight` of container content,
+    // which belongs at canvas row `offsetTop + slice.y`. For document
+    // scrolling offsetTop is 0 and sliceHeight is the viewport height, so
+    // this reduces to a plain 1:1 stack.
+    let chromeFilled = false;
     for (const slice of payload.slices) {
       const img = await loadImg(slice.dataUrl);
-      sctx.drawImage(img, 0, slice.y * dpr, vw * dpr, vh * dpr);
+      const imgH = img.naturalHeight || img.height;
+      const imgW = img.naturalWidth || img.width;
+      if (!chromeFilled && offsetTop > 0) {
+        const chromeCss = Math.min(offsetTop, imgH / dpr);
+        if (chromeCss > 0) {
+          sctx.drawImage(
+            img,
+            0,
+            0,
+            imgW,
+            chromeCss * dpr,
+            0,
+            0,
+            c.width,
+            chromeCss * scale,
+          );
+        }
+        chromeFilled = true;
+      }
+      const bandCss = Math.min(vh, totalHeight - offsetTop - slice.y);
+      if (bandCss <= 0) continue;
+      const srcY = offsetTop * dpr;
+      const srcH = Math.min(bandCss * dpr, imgH - srcY);
+      if (srcH <= 0) continue;
+      sctx.drawImage(
+        img,
+        0,
+        srcY,
+        imgW,
+        srcH,
+        0,
+        Math.round((offsetTop + slice.y) * scale),
+        c.width,
+        Math.round(srcH * (scale / dpr)),
+      );
+    }
+    const stitchUrl = c.toDataURL("image/png");
+    if (!stitchUrl || stitchUrl.length < 64) {
+      throw new Error("Stitched image exceeded the canvas limit");
     }
     return {
-      dataUrl: c.toDataURL("image/png"),
+      dataUrl: stitchUrl,
       title: payload.title,
       url: payload.url,
       timestamp: payload.timestamp,
@@ -140,12 +262,9 @@ function loadCaptureIntoStudio(cap) {
     <div><strong>URL:</strong> ${escapeHtml(cap.url || "N/A")}</div>
     <div><strong>Captured:</strong> ${escapeHtml(cap.timestamp || "")}</div>
   `;
-  baseImage = new Image();
-  baseImage.onload = () => renderComposite();
-  baseImage.src = cap.dataUrl;
+  setBaseImage(cap.dataUrl);
 }
-
-function renderHistoryList(items) {
+function renderHistoryList(items, persistDeletes = true) {
   ui.historyList.innerHTML = "";
   if (!items || items.length === 0) {
     ui.historyList.innerHTML =
@@ -177,8 +296,10 @@ function renderHistoryList(items) {
     card.querySelector(".history-del").addEventListener("click", async (e) => {
       e.stopPropagation();
       items.splice(index, 1);
-      await chrome.storage.local.set({ captureHistory: items });
-      renderHistoryList(items);
+      if (persistDeletes) {
+        await chrome.storage.local.set({ captureHistory: items });
+      }
+      renderHistoryList(items, persistDeletes);
     });
 
     ui.historyList.appendChild(card);
@@ -270,8 +391,69 @@ function roundedRectPath(x, y, w, h, r) {
   ctx.closePath();
 }
 
+const ZOOM_STEPS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+let zoomLevel = null;
+
+function currentScale() {
+  if (zoomLevel !== null) return zoomLevel;
+  const rect = canvas.getBoundingClientRect();
+  return canvas.width ? rect.width / canvas.width : 1;
+}
+
+function applyZoom() {
+  if (zoomLevel === null) {
+    canvas.style.maxWidth = "100%";
+    canvas.style.width = "";
+  } else {
+    // Above fit, the container's max-width would just shrink it straight back.
+    canvas.style.maxWidth = "none";
+    canvas.style.width = Math.round(canvas.width * zoomLevel) + "px";
+  }
+  const s = currentScale();
+  ui.zoomValue.textContent =
+    zoomLevel === null && Math.abs(s - 1) < 0.005
+      ? "Fit"
+      : Math.round(s * 100) + "%";
+  ui.zoomOut.disabled = !imageLoaded || s <= ZOOM_STEPS[0];
+  ui.zoomIn.disabled = !imageLoaded || s >= ZOOM_STEPS[ZOOM_STEPS.length - 1];
+  ui.zoomFit.disabled = zoomLevel === null;
+}
+
+function stepZoom(dir) {
+  const cur = currentScale();
+  const up = dir > 0;
+  const pool = up ? ZOOM_STEPS : ZOOM_STEPS.slice().reverse();
+  const next = pool.find((z) => (up ? z > cur + 0.001 : z < cur - 0.001));
+  zoomLevel = next === undefined ? cur : next;
+  applyZoom();
+}
+
+ui.zoomIn.addEventListener("click", () => stepZoom(1));
+ui.zoomOut.addEventListener("click", () => stepZoom(-1));
+ui.zoomFit.addEventListener("click", () => {
+  zoomLevel = null;
+  applyZoom();
+});
+ui.zoomValue.addEventListener("click", () => {
+  zoomLevel = 1;
+  applyZoom();
+});
+ui.canvasWrap.addEventListener(
+  "wheel",
+  (e) => {
+    if (!e.ctrlKey || !imageLoaded) return;
+    e.preventDefault();
+    stepZoom(e.deltaY < 0 ? 1 : -1);
+  },
+  { passive: false },
+);
+
 function renderComposite() {
-  if (!baseImage.width) return;
+  refreshToolbarState();
+  if (!baseImage.width) {
+    applyZoom();
+    return;
+  }
   const pad = parseInt(ui.padRange.value, 10) || 0;
   const radius = parseInt(ui.radiusRange.value, 10) || 0;
   const macBar = ui.chkMac.checked ? 44 : 0;
@@ -350,6 +532,7 @@ function renderComposite() {
 
   annotations.forEach((item) => drawAnnotation(item));
   ctx.restore();
+  applyZoom();
 }
 
 function drawAnnotation(item) {
@@ -456,13 +639,26 @@ function drawAnnotation(item) {
   ctx.restore();
 }
 
+async function copyText(text, okLabel) {
+  try {
+    await navigator.clipboard.writeText(text);
+    ui.dimBadge.textContent = okLabel;
+  } catch (e) {
+    ui.dimBadge.textContent = "Clipboard blocked — refocus and retry";
+  }
+}
+
 function getCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
+  const scaleX = rect.width ? canvas.width / rect.width : 1;
+  const scaleY = rect.height ? canvas.height / rect.height : 1;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  // The mouseup listener is on window, so the pointer can be well outside
+  // the canvas when a stroke ends.
   return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY,
+    x: Math.max(0, Math.min(canvas.width, x)),
+    y: Math.max(0, Math.min(canvas.height, y)),
   };
 }
 
@@ -484,18 +680,20 @@ function findClickedAnnotation(x, y) {
 }
 
 canvas.addEventListener("mousedown", (e) => {
+  if (!imageLoaded) return;
   const { x, y } = getCanvasCoords(e);
   const color = ui.color.value;
   const size = parseInt(ui.size.value, 10);
 
   if (currentTool === "picker") {
-    const p = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+    const px = Math.max(0, Math.min(canvas.width - 1, Math.floor(x)));
+    const py = Math.max(0, Math.min(canvas.height - 1, Math.floor(y)));
+    const p = ctx.getImageData(px, py, 1, 1).data;
     const hex =
       "#" +
       [p[0], p[1], p[2]].map((v) => v.toString(16).padStart(2, "0")).join("");
     ui.color.value = hex;
-    navigator.clipboard.writeText(hex);
-    ui.dimBadge.textContent = `Copied ${hex.toUpperCase()}`;
+    copyText(hex, `Copied ${hex.toUpperCase()}`);
     return;
   }
 
@@ -598,12 +796,11 @@ window.addEventListener("mouseup", (e) => {
       temp.height = ch;
       temp.getContext("2d").drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
       annotations = [];
+      stepCounter = 1;
       ui.padRange.value = 0;
       ui.chkMac.checked = false;
       ui.chkWatermark.checked = false;
-      baseImage = new Image();
-      baseImage.onload = () => renderComposite();
-      baseImage.src = temp.toDataURL("image/png");
+      setBaseImage(temp.toDataURL("image/png"));
     } else {
       renderComposite();
     }
@@ -666,12 +863,15 @@ window.addEventListener("mouseup", (e) => {
   renderComposite();
 });
 
-document.getElementById("btnUndo").addEventListener("click", () => {
+function undoAnnotation() {
   const removed = annotations.pop();
-  if (removed && removed.type === "step")
+  if (removed && removed.type === "step") {
     stepCounter = Math.max(1, stepCounter - 1);
+  }
   renderComposite();
-});
+}
+
+document.getElementById("btnUndo").addEventListener("click", undoAnnotation);
 
 document.getElementById("btnClear").addEventListener("click", () => {
   annotations = [];
@@ -681,9 +881,10 @@ document.getElementById("btnClear").addEventListener("click", () => {
 
 window.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
     e.preventDefault();
-    annotations.pop();
-    renderComposite();
+    undoAnnotation();
   }
 });
 
@@ -822,18 +1023,24 @@ document.getElementById("dlPdf").addEventListener("click", () => {
 document.getElementById("btnCopy").addEventListener("click", (e) => {
   const btn = e.currentTarget;
   canvas.toBlob(async (blob) => {
-    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-    const old = btn.textContent;
-    btn.textContent = "Copied";
-    setTimeout(() => (btn.textContent = old), 1600);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      const old = btn.textContent;
+      btn.textContent = "Copied";
+      setTimeout(() => (btn.textContent = old), 1600);
+    } catch (err) {
+      ui.dimBadge.textContent = "Image copy blocked — refocus and retry";
+    }
   }, "image/png");
 });
 
-document.getElementById("btnBase64").addEventListener("click", async (e) => {
+document.getElementById("btnBase64").addEventListener("click", (e) => {
   const btn = e.currentTarget;
-  await navigator.clipboard.writeText(canvas.toDataURL("image/png"));
+  copyText(canvas.toDataURL("image/png"), "Copied Base64");
   const old = btn.textContent;
-  btn.textContent = "Copied Base64";
+  btn.textContent = "Copied";
   setTimeout(() => (btn.textContent = old), 1600);
 });
 
