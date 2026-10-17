@@ -75,27 +75,73 @@
     "rgba(0, 0, 0, 0)",
   ]);
 
-  function fullCssFor(el) {
-    const s = window.getComputedStyle(el);
-    const lines = [];
-    for (const prop of s) {
-      if (!prop || prop.startsWith("-") || prop.includes("_")) continue;
-      let v;
-      try {
-        v = s.getPropertyValue(prop);
-      } catch (e) {
-        continue;
-      }
-      if (!v || DEFAULT_SKIP_CSS.has(v)) continue;
-      if (prop === "background-color" && v === "transparent") continue;
-      lines.push(`  ${prop}: ${v};`);
-    }
+  // Logical twins of a property we already print, or values derived from the
+  // element's own box, so they differ from the probe on every element.
+  const DERIVED_CSS = new Set([
+    "block-size",
+    "inline-size",
+    "transform-origin",
+    "perspective-origin",
+    "contain-intrinsic-block-size",
+    "contain-intrinsic-inline-size",
+  ]);
+
+  function escapeText(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function selectorFor(el) {
     const tag = el.tagName.toLowerCase();
+    if (el.id) return `${tag}#${el.id}`;
     const cls =
       typeof el.className === "string" && el.className.trim()
         ? "." + el.className.trim().split(/\s+/).join(".")
         : "";
-    return `/* ${tag}${cls} */\n${tag}${cls} {\n${lines.join("\n")}\n}`;
+    return tag + cls;
+  }
+
+  function cssOverridesFor(el) {
+    const s = window.getComputedStyle(el);
+    // A bare same-tag element resolves the UA defaults for that tag, so a
+    // value that differs from it was set by the page. Without this comparison
+    // the export is ~140 lines of `border-collapse: separate` and
+    // `animation-composition: replace` that nobody asked for.
+    const probe = document.createElement(el.tagName.toLowerCase());
+    document.documentElement.appendChild(probe);
+    const ps = window.getComputedStyle(probe);
+    const lines = [];
+    try {
+      for (const prop of s) {
+        if (!prop || prop.startsWith("-") || prop.includes("_")) continue;
+        if (DERIVED_CSS.has(prop)) continue;
+        let v;
+        try {
+          v = s.getPropertyValue(prop);
+        } catch (e) {
+          continue;
+        }
+        if (!v || DEFAULT_SKIP_CSS.has(v)) continue;
+        if (prop === "background-color" && v === "transparent") continue;
+        let def;
+        try {
+          def = ps.getPropertyValue(prop);
+        } catch (e) {
+          def = null;
+        }
+        if (v === def) continue;
+        lines.push(`  ${prop}: ${v};`);
+      }
+    } finally {
+      probe.remove();
+    }
+    const sel = selectorFor(el);
+    if (!lines.length) {
+      return `/* ${sel} */\n/* no style overrides — the element uses browser defaults */`;
+    }
+    return `/* ${sel} */\n${sel} {\n${lines.join("\n")}\n}`;
   }
 
   function toJsxAttrName(name) {
@@ -490,7 +536,7 @@
             <button id="smCloseHUD" style="background:#27272a; color:#fff; border:none; padding:2px 6px; border-radius:4px; cursor:pointer;">✕</button>
           </div>
         </div>
-        <div id="smStyleContent" style="display:flex; flex-direction:column; gap:4px; max-height:170px; overflow-y:auto; color:#d4d4d8;">
+        <div id="smStyleContent" style="display:flex; flex-direction:column; gap:4px; max-height:210px; overflow-y:auto; color:#d4d4d8;">
           Hover any element...
         </div>
         <div id="smBoxModel" style="margin-top:10px; display:none;"></div>
@@ -624,14 +670,37 @@
         highlight.style.height = r.height + "px";
 
         const s = window.getComputedStyle(el);
-        const styles = `
-          <div><strong>Tag:</strong> &lt;${el.tagName.toLowerCase()}&gt;</div>
-          <div><strong>Font:</strong> ${s.fontFamily.slice(0, 28)}</div>
-          <div><strong>Size / Weight:</strong> ${s.fontSize} / ${s.fontWeight}</div>
-          <div><strong>Color:</strong> <span style="color:${s.color}">${s.color}</span></div>
-          <div><strong>Background:</strong> ${s.backgroundColor}</div>
-          <div><strong>Radius / Shadow:</strong> ${s.borderRadius}</div>
-        `;
+        const rect = el.getBoundingClientRect();
+        const isTransparent =
+          !s.backgroundColor ||
+          s.backgroundColor === "transparent" ||
+          s.backgroundColor === "rgba(0, 0, 0, 0)";
+        const swatch = (c) =>
+          `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px solid #52525b;background:${c};vertical-align:-1px;margin-right:5px;"></span>`;
+        const row = (k, v) => `<div><strong>${k}:</strong> ${v}</div>`;
+        const clip = (v, n) => (v.length > n ? v.slice(0, n) + "…" : v);
+        const shadow = s.boxShadow && s.boxShadow !== "none" ? s.boxShadow : "none";
+        const styles = [
+          row("Element", `&lt;${escapeText(selectorFor(el))}&gt;`),
+          row(
+            "Box",
+            `${Math.round(rect.width)} × ${Math.round(rect.height)}`,
+          ),
+          row(
+            "Font",
+            clip(
+              `${s.fontFamily.split(",")[0].replace(/["']/g, "")} ${s.fontSize} / ${s.fontWeight}`,
+              34,
+            ),
+          ),
+          row("Line height", s.lineHeight),
+          row("Color", `${swatch(s.color)}${s.color}`),
+          isTransparent
+            ? ""
+            : row("Background", `${swatch(s.backgroundColor)}${s.backgroundColor}`),
+          row("Radius", s.borderRadius),
+          row("Shadow", clip(shadow, 40)),
+        ].join("");
         document.getElementById("smStyleContent").innerHTML = styles;
 
         const box = document.getElementById("smBoxModel");
@@ -662,7 +731,7 @@
 
         frozen = true;
 
-        const cssCode = fullCssFor(el);
+        const cssCode = cssOverridesFor(el);
         const htmlCode = el.outerHTML;
         const jsxCode = toJsx(htmlCode);
         const tabs = [
