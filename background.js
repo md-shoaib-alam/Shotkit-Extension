@@ -95,6 +95,34 @@ function sendTabMessage(tabId, payload) {
   });
 }
 
+// How much of a long page is worth shooting, worked out from the page's own
+// geometry. A slice is the viewport at device resolution, so rows cost width ×
+// dpr²: 320M device pixels is exactly what the old fixed 40000 spent in a
+// 1920px window at dpr 2, which holds that window's cost flat and lets a 1x
+// window reach further for the same bytes. The second bound mirrors studio.js:
+// past 32768 px on a side it cannot composite even at its smallest 0.25 scale,
+// so rows beyond it are only ever thrown away.
+const MAX_SLICE_DEVICE_PIXELS = 320000000;
+const STUDIO_MAX_SIDE = 32768;
+const STUDIO_EDITOR_PAD_H = 260;
+const STUDIO_MIN_SCALE = 0.25;
+
+function captureHeightLimit({ viewportWidth, viewportHeight, devicePixelRatio }) {
+  const rowsFromMemory =
+    MAX_SLICE_DEVICE_PIXELS /
+    (viewportWidth * devicePixelRatio * devicePixelRatio);
+  const rowsFromCanvas = (STUDIO_MAX_SIDE - STUDIO_EDITOR_PAD_H) / STUDIO_MIN_SCALE;
+  // Never talk a page out of at least two viewports, however tall the window.
+  return Math.max(
+    Math.floor(Math.min(rowsFromMemory, rowsFromCanvas)),
+    Math.floor(viewportHeight * 2),
+  );
+}
+
+function capHeight(geo) {
+  return { ...geo, fullHeight: Math.min(geo.fullHeight, captureHeightLimit(geo)) };
+}
+
 async function runCaptureFlow(mode, rawSettings) {
   const settings = {
     delay: 0,
@@ -223,7 +251,7 @@ async function runCaptureFlow(mode, rawSettings) {
       forceDark: settings.forceDark,
     });
 
-    const {
+    let {
       fullHeight,
       viewportWidth,
       viewportHeight,
@@ -233,7 +261,61 @@ async function runCaptureFlow(mode, rawSettings) {
       originalScrollY,
       title,
       url,
-    } = metrics;
+    } = capHeight(metrics);
+    let measuredHeight = metrics.fullHeight;
+    if (fullHeight < measuredHeight) {
+      await broadcastProgress(
+        `Page is ${measuredHeight}px tall; taking the first ${fullHeight}px`,
+        5,
+      );
+    }
+
+    // Prime pass. `preparePage` reports the height the page had on arrival,
+    // which on a lazy page is shorter than the one worth capturing, and its
+    // content is still blank below the first viewport. Scroll the whole page
+    // without shooting a single frame, let each stop settle on images and
+    // height, extend the run if the page grows under us, then take the
+    // geometry again.
+    const primeStep = stepHeight || viewportHeight;
+    let primeY = 0;
+    let primeHeight = fullHeight;
+    let primeLastY = -1;
+    let primeStops = 0;
+    while (primeY < primeHeight && !stopRequested) {
+      primeStops++;
+      await broadcastProgress(
+        `Warming up page (${primeStops} of ~${Math.max(1, Math.ceil(primeHeight / primeStep))})`,
+        Math.min(12, Math.round((primeY / primeHeight) * 12)),
+      );
+      const { actualScrollY } = await sendTabMessage(tab.id, {
+        action: "scrollTo",
+        y: primeY,
+        speed: 250,
+      });
+      const grownRaw = await sendTabMessage(tab.id, { action: "measurePage" });
+      if (grownRaw.fullHeight > measuredHeight) {
+        measuredHeight = grownRaw.fullHeight;
+      }
+      const grown = capHeight(grownRaw);
+      if (grown.fullHeight > primeHeight) primeHeight = grown.fullHeight;
+      if (primeY > 0 && actualScrollY === primeLastY) break;
+      primeLastY = actualScrollY;
+      primeY += primeStep;
+    }
+
+    if (!stopRequested) {
+      await sendTabMessage(tab.id, { action: "scrollTo", y: 0, speed: 150 });
+      const freshRaw = await sendTabMessage(tab.id, { action: "measurePage" });
+      const fresh = capHeight(freshRaw);
+      measuredHeight = freshRaw.fullHeight;
+      fullHeight = fresh.fullHeight;
+      viewportWidth = fresh.viewportWidth;
+      viewportHeight = fresh.viewportHeight;
+      stepHeight = fresh.stepHeight;
+      containerOffsetTop = fresh.containerOffsetTop;
+      devicePixelRatio = fresh.devicePixelRatio;
+    }
+
     const slices = [];
     let currentY = 0;
     let lastScrollY = -1;
@@ -294,7 +376,11 @@ async function runCaptureFlow(mode, rawSettings) {
     });
 
     await setBadge("");
-    endCapture();
+    endCapture(
+      measuredHeight > fullHeight
+        ? `Captured the first ${fullHeight}px of a ${measuredHeight}px page`
+        : undefined,
+    );
   } catch (err) {
     await setBadge("ERR", "#ef4444");
     endCapture(`Capture failed: ${err.message}`);

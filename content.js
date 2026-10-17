@@ -295,6 +295,34 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
+  // Reported raw: the page's own width and device ratio set how much of it is
+  // worth capturing, and that decision belongs to the capture loop, not here.
+  function measurePage() {
+    if (!scrollTarget) scrollTarget = findScrollableElement();
+    const fullHeight = Math.max(
+      scrollTarget.scrollHeight,
+      document.body.scrollHeight,
+      window.innerHeight,
+    );
+    const isDocument =
+      scrollTarget === document.scrollingElement ||
+      scrollTarget === document.documentElement;
+    const stepHeight = isDocument
+      ? window.innerHeight
+      : scrollTarget.clientHeight || window.innerHeight;
+    const containerOffsetTop = isDocument
+      ? 0
+      : Math.max(0, scrollTarget.getBoundingClientRect().top);
+    return {
+      fullHeight: fullHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      stepHeight: stepHeight,
+      containerOffsetTop: containerOffsetTop,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    };
+  }
+
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "preparePage") {
       scrollTarget = findScrollableElement();
@@ -329,32 +357,15 @@
         });
       }
 
-      const fullHeight = Math.max(
-        scrollTarget.scrollHeight,
-        document.body.scrollHeight,
-        window.innerHeight,
-      );
-      const isDocument =
-        scrollTarget === document.scrollingElement ||
-        scrollTarget === document.documentElement;
-      const stepHeight = isDocument
-        ? window.innerHeight
-        : scrollTarget.clientHeight || window.innerHeight;
-      const containerOffsetTop = isDocument
-        ? 0
-        : Math.max(0, scrollTarget.getBoundingClientRect().top);
-
       sendResponse({
-        fullHeight: Math.min(fullHeight, 16000),
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        stepHeight: stepHeight,
-        containerOffsetTop: containerOffsetTop,
-        devicePixelRatio: window.devicePixelRatio || 1,
+        ...measurePage(),
         originalScrollY: getScrollTop(scrollTarget),
         title: document.title,
         url: window.location.href,
       });
+      return false;
+    } else if (request.action === "measurePage") {
+      sendResponse(measurePage());
       return false;
     } else if (request.action === "scrollTo") {
       if (!scrollTarget) scrollTarget = findScrollableElement();
@@ -383,10 +394,14 @@
       }
 
       // The scroll itself is instant, so the only reason to wait is lazy-load.
-      // Answer as soon as the incoming viewport has no image still decoding;
-      // `speed` is the ceiling for slow pages, not a fixed sleep per slice.
+      // A stop is ready when nothing intersecting it is still decoding and the
+      // document has stopped growing, because a block that injects markup
+      // after its images land would otherwise be photographed half-built.
+      // `speed` stays the ceiling for both, never a fixed sleep per slice.
       const cap = Math.max(150, request.speed || 550);
       const startedAt = performance.now();
+      const pageHeight = () =>
+        Math.max(scrollTarget.scrollHeight, document.body.scrollHeight);
       const pendingInView = () => {
         let n = 0;
         for (const img of document.images) {
@@ -396,9 +411,18 @@
         }
         return n;
       };
+      let lastHeight = pageHeight();
+      let stableReads = 0;
       const settle = () => {
         const waited = performance.now() - startedAt;
-        if (waited < 40 || (pendingInView() > 0 && waited < cap)) {
+        const height = pageHeight();
+        stableReads = height === lastHeight ? stableReads + 1 : 0;
+        lastHeight = height;
+        const busy =
+          waited < 40 ||
+          (pendingInView() > 0 && waited < cap) ||
+          (stableReads < 1 && waited < cap);
+        if (busy) {
           setTimeout(settle, 24);
           return;
         }
