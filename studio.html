@@ -114,6 +114,28 @@
         cursor: crosshair;
         background: #fff;
       }
+      .editor-stack {
+        position: relative;
+        min-width: 0;
+      }
+      #editorCanvas {
+        display: block;
+      }
+      /* Selection guides live on their own layer: every export reads
+         #editorCanvas, so ink painted here can never reach a file. */
+      #selectionLayer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        pointer-events: none;
+        background: none;
+        box-shadow: none;
+      }
+      canvas.select-mode {
+        cursor: default;
+      }
       .zoom-pill,
       .color-pill {
         position: fixed;
@@ -308,9 +330,14 @@
         color: var(--danger);
         background: var(--hover-bg);
       }
+      @media print {
+        #selectionLayer {
+          display: none;
+        }
+      }
     </style>
   </head>
-  <body>
+  <body class="light">
     <div class="topbar">
       <div class="brand">
         <div class="brand-tile">
@@ -336,6 +363,17 @@
       </div>
 
       <div class="tools-bar">
+        <button
+          class="tool-btn"
+          data-tool="select"
+          title="Select, move and resize annotations (Esc)"
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M4 3l7.5 17 2.4-6.9 6.9-2.4L4 3z" />
+            <path d="M14.2 14.2l5 5" />
+          </svg>
+          <span>Select</span>
+        </button>
         <button class="tool-btn active" data-tool="pen">
           <svg viewBox="0 0 24 24">
             <path d="M12 19l7-7 3 3-7 7-3-3z" />
@@ -476,7 +514,10 @@
       </div>
 
       <div class="canvas-container" id="canvasWrap">
-        <canvas id="editorCanvas"></canvas>
+        <div class="editor-stack" id="editorStack">
+          <canvas id="editorCanvas"></canvas>
+          <canvas id="selectionLayer"></canvas>
+        </div>
         <div class="zoom-pill" id="zoomPill">
           <button id="zoomOut" title="Zoom out">−</button>
           <button id="zoomValue" title="Reset to 100%">Fit</button>
@@ -579,8 +620,8 @@
           <div class="row">
             <label for="pdfModeSelect">PDF Layout</label>
             <select id="pdfModeSelect">
-              <option value="a4">A4 Paginated Pages</option>
               <option value="single">Single Tall Page</option>
+              <option value="a4">A4 Paginated Pages</option>
             </select>
           </div>
           <div class="field">

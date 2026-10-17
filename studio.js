@@ -1,5 +1,7 @@
 const canvas = document.getElementById("editorCanvas");
 const ctx = canvas.getContext("2d");
+const overlay = document.getElementById("selectionLayer");
+const octx = overlay.getContext("2d");
 
 let baseImage = new Image();
 let captureMeta = {};
@@ -11,8 +13,11 @@ let startX = 0,
 let currentPath = [];
 let stepCounter = 1;
 let selectedAnnotation = null;
-let dragOffsetX = 0;
-let dragOffsetY = 0;
+let activeHandle = null;
+let dragOrigin = null;
+let lastPointerX = 0;
+let lastPointerY = 0;
+let pendingDelete = null;
 let imageLoaded = false;
 
 const ui = {
@@ -40,6 +45,7 @@ const ui = {
   undo: document.getElementById("btnUndo"),
   clear: document.getElementById("btnClear"),
   canvasWrap: document.getElementById("canvasWrap"),
+  editorStack: document.getElementById("editorStack"),
   zoomValue: document.getElementById("zoomValue"),
   zoomIn: document.getElementById("zoomIn"),
   zoomOut: document.getElementById("zoomOut"),
@@ -69,7 +75,9 @@ function refreshToolbarState() {
   for (const el of [...toolButtons, ui.color, ui.size, ...exportButtons]) {
     el.disabled = !imageLoaded;
   }
-  const canEdit = imageLoaded && annotations.length > 0;
+  // A deleted shape is still undoable even when it was the last one.
+  const canEdit =
+    imageLoaded && (annotations.length > 0 || pendingDelete !== null);
   ui.undo.disabled = !canEdit;
   ui.clear.disabled = !canEdit;
 }
@@ -92,7 +100,9 @@ function setBaseImage(src) {
 chrome.storage.local.get(
   ["uiTheme", "pendingCapture", "lastCapture", "captureHistory"],
   async (res) => {
-    if (res.uiTheme === "light") document.body.classList.add("light");
+    // Light ships as the default and is already on <body>, so only an
+    // explicit "dark" has to pull it off — and the first paint never flashes.
+    if (res.uiTheme === "dark") document.body.classList.remove("light");
     syncThemeLabel();
 
     try {
@@ -193,10 +203,12 @@ async function buildCaptureFromPayload(payload) {
     const vh = payload.sliceHeight || payload.viewportHeight;
     const offsetTop = payload.containerOffsetTop || 0;
     const lastSlice = payload.slices[payload.slices.length - 1];
-    const totalHeight = Math.min(
-      payload.fullHeight,
-      lastSlice ? offsetTop + lastSlice.y + vh : vh,
-    );
+    // `fullHeight` measures the container's own content, but that content
+    // starts at canvas row `offsetTop`, so the chrome above the scroller has
+    // to be added to the budget or its rows are cropped off the tail.
+    const totalHeight =
+      offsetTop +
+      Math.min(payload.fullHeight, lastSlice ? lastSlice.y + vh : vh);
     const c = document.createElement("canvas");
 
     // Past the browser's canvas ceiling toDataURL quietly returns null, so
@@ -395,15 +407,27 @@ document.getElementById("btnHistory").addEventListener("click", () => {
   ui.historyDrawer.classList.toggle("open");
 });
 
-document.querySelectorAll(".tool-btn[data-tool]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document
-      .querySelectorAll(".tool-btn[data-tool]")
-      .forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    currentTool = btn.dataset.tool;
-  });
-});
+function setTool(name) {
+  // Clicking the tool that is already live hands control back to Select,
+  // so a finished shape never traps you in draw mode.
+  if (name === currentTool && name !== "select") name = "select";
+  currentTool = name;
+  for (const btn of toolButtons) {
+    btn.classList.toggle("active", btn.dataset.tool === name);
+  }
+  canvas.classList.toggle("select-mode", name === "select");
+  canvas.style.cursor = "";
+  if (name !== "select") {
+    selectedAnnotation = null;
+    activeHandle = null;
+    dragOrigin = null;
+  }
+  renderSelectionLayer();
+}
+
+toolButtons.forEach((btn) =>
+  btn.addEventListener("click", () => setTool(btn.dataset.tool)),
+);
 
 [
   ui.chkMac,
@@ -487,14 +511,15 @@ function currentScale() {
 }
 
 function applyZoom() {
-  if (zoomLevel === null) {
-    canvas.style.maxWidth = "100%";
-    canvas.style.width = "";
-  } else {
-    // Above fit, the container's max-width would just shrink it straight back.
-    canvas.style.maxWidth = "none";
-    canvas.style.width = Math.round(canvas.width * zoomLevel) + "px";
-  }
+  const fit = zoomLevel === null;
+  const px = fit ? "" : Math.round(canvas.width * zoomLevel) + "px";
+  // Above fit the container's max-width would just shrink it straight back.
+  canvas.style.maxWidth = fit ? "100%" : "none";
+  canvas.style.width = px;
+  // The selection layer is measured off the stack, so the stack must carry the
+  // same box the canvas does at every zoom level.
+  ui.editorStack.style.maxWidth = fit ? "100%" : "none";
+  ui.editorStack.style.width = px;
   const s = currentScale();
   ui.zoomValue.textContent =
     zoomLevel === null && Math.abs(s - 1) < 0.005
@@ -503,6 +528,7 @@ function applyZoom() {
   ui.zoomOut.disabled = !imageLoaded || s <= ZOOM_STEPS[0];
   ui.zoomIn.disabled = !imageLoaded || s >= ZOOM_STEPS[ZOOM_STEPS.length - 1];
   ui.zoomFit.disabled = zoomLevel === null;
+  renderSelectionLayer();
 }
 
 function stepZoom(dir) {
@@ -725,6 +751,281 @@ function drawAnnotation(item) {
   ctx.restore();
 }
 
+const SELECT_COLOR = "#10b981";
+const HANDLE_HALF = 4.5; // css px, so handles stay grabbable at any zoom
+const HIT_PAD = 7; // css px of slop around thin ink
+
+function clamp(value, lo, hi) {
+  return Math.max(lo, Math.min(hi, value));
+}
+
+function pushAnnotation(ann) {
+  annotations.push(ann);
+  // A fresh stroke makes the last deletion unrecoverable by undo.
+  pendingDelete = null;
+}
+
+function stepRadius(ann) {
+  return 14 + ann.size;
+}
+
+function loupeRadius(ann) {
+  return Math.max(20, ann.r || 20);
+}
+
+function bboxOf(ann) {
+  if (ann.type === "pen" || ann.type === "highlight") {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const p of ann.points) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
+    }
+    if (ann.points.length === 0 || !Number.isFinite(minX)) {
+      return { x: 0, y: 0, w: 0, h: 0 };
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+  if (ann.type === "arrow") {
+    return {
+      x: Math.min(ann.x1, ann.x2),
+      y: Math.min(ann.y1, ann.y2),
+      w: Math.abs(ann.x2 - ann.x1),
+      h: Math.abs(ann.y2 - ann.y1),
+    };
+  }
+  if (ann.type === "step") {
+    const r = stepRadius(ann);
+    return { x: ann.x - r, y: ann.y - r, w: r * 2, h: r * 2 };
+  }
+  if (ann.type === "loupe") {
+    const r = loupeRadius(ann);
+    return { x: ann.x - r, y: ann.y - r, w: r * 2, h: r * 2 };
+  }
+  if (ann.type === "text") {
+    const font = 14 + ann.size * 2;
+    ctx.save();
+    ctx.font = `600 ${font}px sans-serif`;
+    const w = ctx.measureText(ann.text).width;
+    ctx.restore();
+    return { x: ann.x, y: ann.y - font * 0.8, w, h: font };
+  }
+  return {
+    x: Math.min(ann.x, ann.x + ann.w),
+    y: Math.min(ann.y, ann.y + ann.h),
+    w: Math.abs(ann.w),
+    h: Math.abs(ann.h),
+  };
+}
+
+// Corner handles pin the opposite corner; round shapes get one radius handle,
+// arrows get both tips, text gets a single size corner.
+function getHandles(ann) {
+  if (ann.type === "arrow") {
+    return [
+      { id: "start", x: ann.x1, y: ann.y1, cursor: "move" },
+      { id: "end", x: ann.x2, y: ann.y2, cursor: "move" },
+    ];
+  }
+  if (ann.type === "loupe" || ann.type === "step") {
+    const r = ann.type === "loupe" ? loupeRadius(ann) : stepRadius(ann);
+    return [{ id: "radius", x: ann.x + r, y: ann.y, cursor: "ew-resize" }];
+  }
+  if (ann.type === "text") {
+    const b = bboxOf(ann);
+    return [{ id: "size", x: b.x + b.w, y: b.y + b.h, cursor: "nwse-resize" }];
+  }
+  const b = bboxOf(ann);
+  return [
+    { id: "nw", x: b.x, y: b.y, cursor: "nwse-resize" },
+    { id: "ne", x: b.x + b.w, y: b.y, cursor: "nesw-resize" },
+    { id: "sw", x: b.x, y: b.y + b.h, cursor: "nesw-resize" },
+    { id: "se", x: b.x + b.w, y: b.y + b.h, cursor: "nwse-resize" },
+  ];
+}
+
+function renderSelectionLayer() {
+  if (overlay.width !== canvas.width || overlay.height !== canvas.height) {
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+  }
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (selectedAnnotation && annotations.indexOf(selectedAnnotation) === -1) {
+    selectedAnnotation = null; // cleared, undone, or a new capture loaded
+  }
+  if (!selectedAnnotation || !imageLoaded) return;
+  const k = 1 / currentScale();
+  const b = bboxOf(selectedAnnotation);
+  octx.save();
+  octx.lineWidth = 1.5 * k;
+  octx.strokeStyle = SELECT_COLOR;
+  octx.fillStyle = "#ffffff";
+  octx.setLineDash([5 * k, 4 * k]);
+  octx.strokeRect(b.x - 3 * k, b.y - 3 * k, b.w + 6 * k, b.h + 6 * k);
+  octx.setLineDash([]);
+  const hs = HANDLE_HALF * k;
+  for (const h of getHandles(selectedAnnotation)) {
+    octx.beginPath();
+    octx.rect(h.x - hs, h.y - hs, hs * 2, hs * 2);
+    octx.fill();
+    octx.stroke();
+  }
+  octx.restore();
+}
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1,
+    dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  const t = len2
+    ? clamp(((px - x1) * dx + (py - y1) * dy) / len2, 0, 1)
+    : 0;
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+function hitPad() {
+  return HIT_PAD / currentScale();
+}
+
+function findHandleAt(x, y) {
+  if (!selectedAnnotation) return null;
+  const r = hitPad();
+  for (const h of getHandles(selectedAnnotation)) {
+    if (Math.max(Math.abs(x - h.x), Math.abs(y - h.y)) <= r) {
+      return { handle: h, ann: selectedAnnotation };
+    }
+  }
+  return null;
+}
+
+function inBox(x, y, b, pad) {
+  return (
+    x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad
+  );
+}
+
+// Every annotation type is selectable, newest first. Stroked shapes are hit on
+// the ink itself so a big scribble does not swallow what sits under it.
+function findClickedAnnotation(x, y) {
+  const pad = hitPad();
+  for (let i = annotations.length - 1; i >= 0; i--) {
+    const ann = annotations[i];
+    if (ann.type === "pen" || ann.type === "highlight") {
+      const half =
+        (ann.type === "highlight" ? ann.size * 4 : ann.size) / 2 + pad;
+      const pts = ann.points;
+      if (pts.length === 1) {
+        if (Math.hypot(pts[0].x - x, pts[0].y - y) <= half) return ann;
+        continue;
+      }
+      for (let j = 1; j < pts.length; j++) {
+        if (distToSegment(x, y, pts[j - 1].x, pts[j - 1].y, pts[j].x, pts[j].y) <= half) {
+          return ann;
+        }
+      }
+      continue;
+    }
+    if (ann.type === "arrow") {
+      if (distToSegment(x, y, ann.x1, ann.y1, ann.x2, ann.y2) <= ann.size / 2 + pad) {
+        return ann;
+      }
+      continue;
+    }
+    if (ann.type === "loupe" || ann.type === "step") {
+      const r =
+        (ann.type === "loupe" ? loupeRadius(ann) : stepRadius(ann)) + pad;
+      if (Math.hypot(ann.x - x, ann.y - y) <= r) return ann;
+      continue;
+    }
+    if (inBox(x, y, bboxOf(ann), pad)) return ann;
+  }
+  return null;
+}
+
+function translateAnnotation(ann, dx, dy) {
+  if (ann.type === "pen" || ann.type === "highlight") {
+    for (const p of ann.points) {
+      p.x += dx;
+      p.y += dy;
+    }
+    return;
+  }
+  if (ann.type === "arrow") {
+    ann.x1 += dx;
+    ann.y1 += dy;
+    ann.x2 += dx;
+    ann.y2 += dy;
+    return;
+  }
+  ann.x += dx;
+  ann.y += dy;
+}
+
+function resizeAnnotation(ann, orig, id, x, y) {
+  if (ann.type === "arrow") {
+    if (id === "start") {
+      ann.x1 = x;
+      ann.y1 = y;
+    } else {
+      ann.x2 = x;
+      ann.y2 = y;
+    }
+    return;
+  }
+  if (ann.type === "loupe") {
+    ann.r = Math.max(12, Math.hypot(x - ann.x, y - ann.y));
+    return;
+  }
+  if (ann.type === "step") {
+    ann.size = clamp(Math.round(Math.hypot(x - ann.x, y - ann.y) - 14), 1, 40);
+    return;
+  }
+  const b = bboxOf(orig);
+  if (id === "size") {
+    const d0 = Math.hypot(b.w, b.h) || 1;
+    const d1 = Math.hypot(Math.max(6, x - b.x), Math.max(6, y - b.y));
+    const font = (14 + orig.size * 2) * (d1 / d0);
+    ann.size = clamp(Math.round((font - 14) / 2), 1, 40);
+    return;
+  }
+  const anchorX = id === "nw" || id === "sw" ? b.x + b.w : b.x;
+  const anchorY = id === "nw" || id === "ne" ? b.y + b.h : b.y;
+  const w = Math.max(4, Math.abs(x - anchorX));
+  const h = Math.max(4, Math.abs(y - anchorY));
+  if (ann.type === "pen" || ann.type === "highlight") {
+    const sx = b.w ? w / b.w : 1;
+    const sy = b.h ? h / b.h : 1;
+    ann.points = orig.points.map((p) => ({
+      x: anchorX + (p.x - anchorX) * sx,
+      y: anchorY + (p.y - anchorY) * sy,
+    }));
+    return;
+  }
+  ann.x = Math.min(x, anchorX);
+  ann.y = Math.min(y, anchorY);
+  ann.w = w;
+  ann.h = h;
+}
+
+function cloneGeometry(ann) {
+  const copy = { ...ann };
+  if (ann.points) copy.points = ann.points.map((p) => ({ x: p.x, y: p.y }));
+  return copy;
+}
+
+function updateSelectCursor(x, y) {
+  const grab = findHandleAt(x, y);
+  canvas.style.cursor = grab
+    ? grab.handle.cursor
+    : findClickedAnnotation(x, y)
+      ? "move"
+      : "default";
+}
+
 async function copyText(text, okLabel) {
   try {
     await navigator.clipboard.writeText(text);
@@ -800,23 +1101,6 @@ function getCanvasCoords(e) {
   };
 }
 
-function findClickedAnnotation(x, y) {
-  for (let i = annotations.length - 1; i >= 0; i--) {
-    const ann = annotations[i];
-    if (ann.type === "loupe" || ann.type === "step") {
-      const dist = Math.hypot(ann.x - x, ann.y - y);
-      if (dist <= (ann.r || 30)) return ann;
-    } else if (ann.type === "rect" || ann.type === "blur") {
-      const minX = Math.min(ann.x, ann.x + ann.w);
-      const maxX = Math.max(ann.x, ann.x + ann.w);
-      const minY = Math.min(ann.y, ann.y + ann.h);
-      const maxY = Math.max(ann.y, ann.y + ann.h);
-      if (x >= minX && x <= maxX && y >= minY && y <= maxY) return ann;
-    }
-  }
-  return null;
-}
-
 canvas.addEventListener("mousedown", (e) => {
   if (!imageLoaded) return;
   const { x, y } = getCanvasCoords(e);
@@ -832,18 +1116,33 @@ canvas.addEventListener("mousedown", (e) => {
     return;
   }
 
-  selectedAnnotation = findClickedAnnotation(x, y);
-  if (selectedAnnotation) {
-    isDrawing = true;
-    startX = x;
-    startY = y;
-    dragOffsetX = x - selectedAnnotation.x;
-    dragOffsetY = y - selectedAnnotation.y;
+  // Select owns editing; every other tool owns drawing.
+  if (currentTool === "select") {
+    activeHandle = null;
+    const grab = findHandleAt(x, y);
+    if (grab) {
+      activeHandle = grab.handle;
+      dragOrigin = cloneGeometry(grab.ann);
+      isDrawing = true;
+      return;
+    }
+    selectedAnnotation = findClickedAnnotation(x, y);
+    if (selectedAnnotation) {
+      lastPointerX = x;
+      lastPointerY = y;
+      isDrawing = true;
+    }
+    renderSelectionLayer();
     return;
   }
 
+  if (selectedAnnotation) {
+    selectedAnnotation = null;
+    renderSelectionLayer();
+  }
+
   if (currentTool === "step") {
-    annotations.push({ type: "step", x, y, num: stepCounter++, color, size });
+    pushAnnotation({ type: "step", x, y, num: stepCounter++, color, size });
     renderComposite();
     return;
   }
@@ -851,7 +1150,7 @@ canvas.addEventListener("mousedown", (e) => {
   if (currentTool === "text") {
     const text = prompt("Enter text label:");
     if (text && text.trim()) {
-      annotations.push({ type: "text", x, y, text: text.trim(), color, size });
+      pushAnnotation({ type: "text", x, y, text: text.trim(), color, size });
       renderComposite();
     }
     return;
@@ -864,14 +1163,24 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!isDrawing) return;
   const { x, y } = getCanvasCoords(e);
+  if (!isDrawing) {
+    if (currentTool === "select") updateSelectCursor(x, y);
+    return;
+  }
   const color = ui.color.value;
   const size = parseInt(ui.size.value, 10);
 
+  if (activeHandle && selectedAnnotation) {
+    resizeAnnotation(selectedAnnotation, dragOrigin, activeHandle.id, x, y);
+    renderComposite();
+    return;
+  }
+
   if (selectedAnnotation) {
-    selectedAnnotation.x = x - dragOffsetX;
-    selectedAnnotation.y = y - dragOffsetY;
+    translateAnnotation(selectedAnnotation, x - lastPointerX, y - lastPointerY);
+    lastPointerX = x;
+    lastPointerY = y;
     renderComposite();
     return;
   }
@@ -914,7 +1223,15 @@ canvas.addEventListener("mousemove", (e) => {
 window.addEventListener("mouseup", (e) => {
   if (!isDrawing) return;
   isDrawing = false;
-  selectedAnnotation = null;
+
+  if (activeHandle || currentTool === "select") {
+    // A finished edit leaves the shape selected so it can be nudged again.
+    activeHandle = null;
+    dragOrigin = null;
+    renderComposite();
+    return;
+  }
+
   const { x, y } = getCanvasCoords(e);
   const color = ui.color.value;
   const size = parseInt(ui.size.value, 10);
@@ -931,6 +1248,8 @@ window.addEventListener("mouseup", (e) => {
       temp.height = ch;
       temp.getContext("2d").drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
       annotations = [];
+      selectedAnnotation = null;
+      pendingDelete = null;
       stepCounter = 1;
       ui.padRange.value = 0;
       ui.padRange.dispatchEvent(new Event("input"));
@@ -943,11 +1262,12 @@ window.addEventListener("mouseup", (e) => {
     return;
   }
 
+  // The tool stays armed: draw a row of boxes without re-clicking the toolbar.
   if (currentTool === "pen" || currentTool === "highlight") {
-    annotations.push({ type: currentTool, points: currentPath, color, size });
+    pushAnnotation({ type: currentTool, points: currentPath, color, size });
   } else if (currentTool === "rect" || currentTool === "blur") {
     if (Math.abs(x - startX) > 3 && Math.abs(y - startY) > 3) {
-      annotations.push({
+      pushAnnotation({
         type: currentTool,
         x: Math.min(startX, x),
         y: Math.min(startY, y),
@@ -956,17 +1276,10 @@ window.addEventListener("mouseup", (e) => {
         color,
         size,
       });
-      currentTool = "pen";
-      document
-        .querySelectorAll(".tool-btn[data-tool]")
-        .forEach((b) => b.classList.remove("active"));
-      document
-        .querySelector('.tool-btn[data-tool="pen"]')
-        .classList.add("active");
     }
   } else if (currentTool === "arrow") {
     if (Math.hypot(x - startX, y - startY) > 5) {
-      annotations.push({
+      pushAnnotation({
         type: "arrow",
         x1: startX,
         y1: startY,
@@ -975,35 +1288,44 @@ window.addEventListener("mouseup", (e) => {
         color,
         size,
       });
-      currentTool = "pen";
-      document
-        .querySelectorAll(".tool-btn[data-tool]")
-        .forEach((b) => b.classList.remove("active"));
-      document
-        .querySelector('.tool-btn[data-tool="pen"]')
-        .classList.add("active");
     }
   } else if (currentTool === "loupe") {
     const r = Math.hypot(x - startX, y - startY);
     if (r > 15) {
-      annotations.push({ type: "loupe", x: startX, y: startY, r, color, size });
-      currentTool = "pen";
-      document
-        .querySelectorAll(".tool-btn[data-tool]")
-        .forEach((b) => b.classList.remove("active"));
-      document
-        .querySelector('.tool-btn[data-tool="pen"]')
-        .classList.add("active");
+      pushAnnotation({ type: "loupe", x: startX, y: startY, r, color, size });
     }
   }
   renderComposite();
 });
 
 function undoAnnotation() {
+  if (pendingDelete) {
+    const { ann, index, stepCounter: counter } = pendingDelete;
+    pendingDelete = null;
+    annotations.splice(Math.min(index, annotations.length), 0, ann);
+    stepCounter = counter;
+    selectedAnnotation = ann;
+    renderComposite();
+    return;
+  }
   const removed = annotations.pop();
   if (removed && removed.type === "step") {
     stepCounter = Math.max(1, stepCounter - 1);
   }
+  if (removed === selectedAnnotation) selectedAnnotation = null;
+  renderComposite();
+}
+
+function deleteSelectedAnnotation() {
+  if (!selectedAnnotation) return;
+  const index = annotations.indexOf(selectedAnnotation);
+  if (index === -1) return;
+  pendingDelete = { ann: selectedAnnotation, index, stepCounter };
+  if (selectedAnnotation.type === "step") {
+    stepCounter = Math.max(1, stepCounter - 1);
+  }
+  annotations.splice(index, 1);
+  selectedAnnotation = null;
   renderComposite();
 }
 
@@ -1011,16 +1333,31 @@ document.getElementById("btnUndo").addEventListener("click", undoAnnotation);
 
 document.getElementById("btnClear").addEventListener("click", () => {
   annotations = [];
+  selectedAnnotation = null;
+  pendingDelete = null;
   stepCounter = 1;
   renderComposite();
 });
 
 window.addEventListener("keydown", (e) => {
+  const t = e.target;
+  const typing =
+    t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-    const t = e.target;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    if (typing) return;
     e.preventDefault();
     undoAnnotation();
+    return;
+  }
+  if (typing) return;
+  if (e.key === "Escape") {
+    setTool("select");
+    return;
+  }
+  if (e.key === "Delete" || e.key === "Backspace") {
+    if (!selectedAnnotation) return;
+    e.preventDefault();
+    deleteSelectedAnnotation();
   }
 });
 
