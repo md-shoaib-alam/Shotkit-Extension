@@ -1,14 +1,28 @@
 let stopRequested = false;
 
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "capture-full") startCaptureFromShortcut("full");
+  else if (command === "capture-visible") startCaptureFromShortcut("visible");
+  else if (command === "capture-region") startCaptureFromShortcut("region");
+});
+
+async function startCaptureFromShortcut(mode) {
+  const res = await chrome.storage.local.get(["settings"]);
+  runCaptureFlow(mode, res.settings || {});
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "START_CAPTURE") {
     stopRequested = false;
-    chrome.storage.local.set({ isCapturing: true });
+    chrome.storage.local.set({
+      isCapturing: true,
+      captureProgress: { text: "Starting capture...", pct: 0 },
+    });
     runCaptureFlow(msg.mode, msg.settings);
     sendResponse({ started: true });
   } else if (msg.action === "STOP_CAPTURE") {
     stopRequested = true;
-    chrome.storage.local.set({ isCapturing: false });
+    endCapture("Capture stopped");
     sendResponse({ stopped: true });
   } else if (msg.action === "START_INSPECT") {
     runInspectorFlow();
@@ -23,9 +37,25 @@ async function setBadge(text, color = "#10b981") {
 }
 
 async function broadcastProgress(text, pct) {
+  // The popup can be closed for most of a capture, so mirror every update
+  // into storage; a reopened popup reads it instead of showing "Warming up".
+  chrome.storage.local
+    .set({ captureProgress: { text, pct } })
+    .catch(() => {});
   try {
     await chrome.runtime.sendMessage({ action: "UPDATE_PROGRESS", text, pct });
   } catch (e) {}
+}
+
+function endCapture(finalText) {
+  // A terminal message is kept so a reopened popup can still show why the
+  // run ended; ordinary finishes clear it.
+  return chrome.storage.local
+    .set({
+      isCapturing: false,
+      captureProgress: finalText ? { text: finalText, pct: 0 } : null,
+    })
+    .catch(() => {});
 }
 
 async function runInspectorFlow() {
@@ -59,7 +89,16 @@ function sendTabMessage(tabId, payload) {
   });
 }
 
-async function runCaptureFlow(mode, settings) {
+async function runCaptureFlow(mode, rawSettings) {
+  const settings = {
+    delay: 0,
+    speed: 550,
+    hideFixed: true,
+    killCookies: false,
+    hideScroll: true,
+    forceDark: false,
+    ...rawSettings,
+  };
   try {
     const [tab] = await chrome.tabs.query({
       active: true,
@@ -73,8 +112,8 @@ async function runCaptureFlow(mode, settings) {
       tab.url.startsWith("chrome-extension://")
     ) {
       await setBadge("ERR", "#ef4444");
+      endCapture("This page cannot be captured");
       setTimeout(() => setBadge(""), 2500);
-      chrome.storage.local.set({ isCapturing: false });
       return;
     }
 
@@ -96,7 +135,7 @@ async function runCaptureFlow(mode, settings) {
 
     if (stopRequested) {
       await setBadge("");
-      chrome.storage.local.set({ isCapturing: false });
+      endCapture();
       return;
     }
 
@@ -120,7 +159,7 @@ async function runCaptureFlow(mode, settings) {
           y: metrics.originalScrollY,
         });
         await setBadge("");
-        chrome.storage.local.set({ isCapturing: false });
+        endCapture();
         return;
       }
 
@@ -139,7 +178,7 @@ async function runCaptureFlow(mode, settings) {
         url: metrics.url,
       });
       await setBadge("");
-      chrome.storage.local.set({ isCapturing: false });
+      endCapture();
       return;
     }
 
@@ -165,7 +204,7 @@ async function runCaptureFlow(mode, settings) {
         url: metrics.url,
       });
       await setBadge("");
-      chrome.storage.local.set({ isCapturing: false });
+      endCapture();
       return;
     }
 
@@ -182,6 +221,8 @@ async function runCaptureFlow(mode, settings) {
       fullHeight,
       viewportWidth,
       viewportHeight,
+      stepHeight,
+      containerOffsetTop,
       devicePixelRatio,
       originalScrollY,
       title,
@@ -191,7 +232,8 @@ async function runCaptureFlow(mode, settings) {
     let currentY = 0;
     let lastScrollY = -1;
     const overlap = 20;
-    const step = Math.max(100, viewportHeight - overlap);
+    const sliceH = stepHeight || viewportHeight;
+    const step = Math.max(100, sliceH - overlap);
     const totalSteps = Math.max(1, Math.ceil(fullHeight / step));
     let stepCount = 0;
 
@@ -225,7 +267,7 @@ async function runCaptureFlow(mode, settings) {
 
     if (stopRequested) {
       await setBadge("");
-      chrome.storage.local.set({ isCapturing: false });
+      endCapture();
       return;
     }
 
@@ -237,6 +279,8 @@ async function runCaptureFlow(mode, settings) {
       slices,
       viewportWidth,
       viewportHeight,
+      sliceHeight: sliceH,
+      containerOffsetTop: containerOffsetTop || 0,
       fullHeight,
       dpr: devicePixelRatio,
       title,
@@ -244,10 +288,10 @@ async function runCaptureFlow(mode, settings) {
     });
 
     await setBadge("");
-    chrome.storage.local.set({ isCapturing: false });
+    endCapture();
   } catch (err) {
     await setBadge("ERR", "#ef4444");
-    chrome.storage.local.set({ isCapturing: false });
+    endCapture(`Capture failed: ${err.message}`);
     setTimeout(() => setBadge(""), 3000);
   }
 }
