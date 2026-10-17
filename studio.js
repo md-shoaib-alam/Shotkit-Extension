@@ -291,7 +291,7 @@ function loadCaptureIntoStudio(cap) {
   const cleanTitle = (cap.title || "screenshot")
     .replace(/[^a-z0-9-_]/gi, "_")
     .slice(0, 40);
-  ui.fileName.value = `SnapMaster_${cleanTitle}_${Date.now()}`;
+  ui.fileName.value = `Shotkit_${cleanTitle}_${Date.now()}`;
   ui.metaInfo.innerHTML = `
     <div><strong>Title:</strong> ${escapeHtml(cap.title || "Untitled")}</div>
     <div><strong>URL:</strong> ${escapeHtml(cap.url || "N/A")}</div>
@@ -567,7 +567,7 @@ function renderComposite() {
     ctx.fillStyle = "#a1a1aa";
     ctx.font = "12px sans-serif";
     ctx.fillText(
-      `SnapMaster Studio  |  ${captureMeta.timestamp || ""}  |  ${captureMeta.url || ""}`,
+      `Shotkit Studio  |  ${captureMeta.timestamp || ""}  |  ${captureMeta.url || ""}`,
       pad + 16,
       footY + 22,
     );

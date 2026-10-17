@@ -1,6 +1,6 @@
 (() => {
-  if (window.__snapMasterListenerAdded) return;
-  window.__snapMasterListenerAdded = true;
+  if (window.__shotkitListenerAdded) return;
+  window.__shotkitListenerAdded = true;
 
   let fixedElements = [];
   let hiddenBanners = [];
@@ -543,10 +543,10 @@
       window.addEventListener("keydown", onKey, true);
       return true;
     } else if (request.action === "launchStyleInspector") {
-      if (document.getElementById("snapMasterStyleHUD")) return;
+      if (document.getElementById("shotkitStyleHUD")) return;
 
       const hud = document.createElement("div");
-      hud.id = "snapMasterStyleHUD";
+      hud.id = "shotkitStyleHUD";
       hud.style.cssText = `
         position: fixed; bottom: 20px; right: 20px; width: 360px; background: #09090b; color: #fafafa;
         border: 1px solid #27272a; border-radius: 10px; padding: 14px; font-family: sans-serif; font-size: 12px;
