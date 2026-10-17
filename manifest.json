@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Shotkit",
   "version": "5.5",
-  "description": "Fast full-page capture, draggable loupes & boxes, HTML/CSS/JSX code exporter, spacing ruler & box-model inspector, canvas zoom, and Light/Dark theme.",
+  "description": "Full-page capture, draggable loupes and boxes, HTML/CSS/JSX export, box-model inspector, canvas zoom, light/dark themes.",
   "permissions": [
     "activeTab",
     "scripting",
