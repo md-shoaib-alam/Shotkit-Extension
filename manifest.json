@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SnapMaster Studio v5.4",
-  "version": "5.4",
-  "description": "Full-page capture, draggable loupes & boxes, HTML/CSS/JSX code exporter, spacing ruler & box-model inspector, canvas zoom, and Light/Dark theme.",
+  "name": "SnapMaster Studio v5.5",
+  "version": "5.5",
+  "description": "Fast full-page capture, draggable loupes & boxes, HTML/CSS/JSX code exporter, spacing ruler & box-model inspector, canvas zoom, and Light/Dark theme.",
   "permissions": [
     "activeTab",
     "scripting",
