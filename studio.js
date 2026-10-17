@@ -87,22 +87,13 @@ chrome.storage.local.get(
     try {
       if (res.pendingCapture) {
         const finalCapture = await buildCaptureFromPayload(res.pendingCapture);
-        const history = (res.captureHistory || []).slice(0, 9);
-        history.unshift(finalCapture);
-        try {
-          await chrome.storage.local.set({
-            lastCapture: finalCapture,
-            pendingCapture: null,
-            captureHistory: history,
-          });
-        } catch (e) {
-          // History is best-effort; never let it block opening the capture.
-          await chrome.storage.local
-            .set({ lastCapture: finalCapture, pendingCapture: null })
-            .catch(() => {});
-        }
+        // Paint first. The history write is tens of megabytes and used to
+        // block the image from appearing at all.
         loadCaptureIntoStudio(finalCapture);
-        renderHistoryList(history);
+        renderHistoryList(
+          [finalCapture, ...(res.captureHistory || [])].slice(0, 10),
+        );
+        persistCapture(finalCapture, res.captureHistory || []);
       } else if (res.lastCapture) {
         loadCaptureIntoStudio(res.lastCapture);
         const hist = res.captureHistory || [];
@@ -114,6 +105,42 @@ chrome.storage.local.get(
     refreshToolbarState();
   },
 );
+
+function makeThumb(dataUrl, maxSide = 240) {
+  return loadImg(dataUrl).then((img) => {
+    const w = img.naturalWidth || 1;
+    const h = img.naturalHeight || 1;
+    const ratio = Math.min(1, maxSide / Math.max(w, h));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * ratio));
+    c.height = Math.max(1, Math.round(h * ratio));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.72);
+  });
+}
+
+async function persistCapture(finalCapture, existing) {
+  try {
+    finalCapture.thumbUrl = await makeThumb(finalCapture.dataUrl);
+  } catch (e) {
+    // A missing thumb only costs the drawer a bigger image.
+  }
+  const history = [finalCapture, ...existing].slice(0, 10);
+  try {
+    await chrome.storage.local.set({
+      lastCapture: finalCapture,
+      pendingCapture: null,
+      captureHistory: history,
+    });
+  } catch (e) {
+    // History is best-effort; never let it lose the capture itself.
+    await chrome.storage.local
+      .set({ lastCapture: finalCapture, pendingCapture: null })
+      .catch(() => {});
+    return;
+  }
+  renderHistoryList(history);
+}
 
 async function buildCaptureFromPayload(payload) {
   if (payload.mode === "single") {
@@ -276,7 +303,7 @@ function renderHistoryList(items, persistDeletes = true) {
     const card = document.createElement("div");
     card.className = "history-card";
     card.innerHTML = `
-      <img src="${item.dataUrl}" class="history-thumb" alt="thumb">
+      <img src="${item.thumbUrl || item.dataUrl}" class="history-thumb" alt="thumb">
       <div class="history-info">
         <div class="history-title">${escapeHtml(item.title || "Capture")}</div>
         <div class="history-date">${escapeHtml(item.timestamp || "")}</div>
