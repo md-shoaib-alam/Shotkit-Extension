@@ -336,7 +336,7 @@
             <circle cx="12" cy="13" r="4" />
           </svg>
         </div>
-        <div class="brand">SnapMaster v5.0</div>
+        <div class="brand">SnapMaster v5.4</div>
       </div>
       <div class="header-actions">
         <button class="icon-btn" id="btnOpenStudio" title="Open Studio">
@@ -493,6 +493,35 @@
             ></span
           ></label>
         </div>
+
+        <div class="row">
+          <label class="row-label" for="hideScroll">
+            <svg viewBox="0 0 24 24">
+              <rect x="8" y="3" width="8" height="18" rx="4" />
+              <line x1="12" y1="7" x2="12" y2="11" />
+            </svg>
+            <span>Hide Scrollbars</span>
+          </label>
+          <label class="switch"
+            ><input type="checkbox" id="hideScroll" checked /><span
+              class="slider"
+            ></span
+          ></label>
+        </div>
+
+        <div class="row">
+          <label class="row-label" for="forceDark">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+            <span>Force Dark Mode</span>
+          </label>
+          <label class="switch"
+            ><input type="checkbox" id="forceDark" /><span
+              class="slider"
+            ></span
+          ></label>
+        </div>
       </div>
     </div>
 
@@ -529,7 +558,7 @@
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="captureProgressBar"></div>
       </div>
-      <div class="status-sub">close to pause, reopen to resume</div>
+      <div class="status-sub">capture keeps running — reopen to see progress</div>
 
       <button class="btn-stop" id="btnStopCapture">
         <svg viewBox="0 0 24 24">
