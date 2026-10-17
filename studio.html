@@ -3,75 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <title>Shotkit Studio</title>
+    <link rel="stylesheet" href="ui.css" />
     <style>
-      :root {
-        --bg: #09090b;
-        --panel: #121215;
-        --surface: #18181b;
-        --surface-hover: #27272a;
-        --border: #27272a;
-        --border-light: #3f3f46;
-        --text: #fafafa;
-        --muted: #a1a1aa;
-        --accent: #10b981;
-        --primary-bg: #fafafa;
-        --primary-text: #09090b;
-        --grid-dot: #27272a;
-      }
+      /* Studio keeps the shared defaults for cards and chrome; its page
+         canvas sits one step deeper and its hover lands on the border tone. */
       body.light {
-        --bg: #f1f5f9;
-        --panel: #ffffff;
-        --surface: #f8fafc;
-        --surface-hover: #e2e8f0;
-        --border: #e2e8f0;
-        --border-light: #cbd5e1;
-        --text: #0f172a;
-        --muted: #64748b;
-        --accent: #059669;
-        --primary-bg: #0f172a;
-        --primary-text: #ffffff;
-        --grid-dot: #cbd5e1;
-      }
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
+        --bg: var(--surface-3);
+        --hover-bg: var(--border);
       }
       body {
-        background: var(--bg);
-        color: var(--text);
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
         height: 100vh;
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        transition:
-          background 0.15s,
-          color 0.15s;
-      }
-      svg {
-        width: 15px;
-        height: 15px;
-        stroke: currentColor;
-        stroke-width: 1.75;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        fill: none;
-        flex-shrink: 0;
-      }
-      .theme-moon {
-        display: none;
-      }
-      body.light .theme-sun {
-        display: none;
-      }
-      body.light .theme-moon {
-        display: block;
       }
       .topbar {
         height: 56px;
-        background: var(--panel);
+        background: var(--chrome-bg);
         border-bottom: 1px solid var(--border);
         display: flex;
         align-items: center;
@@ -79,24 +27,10 @@
         padding: 0 18px;
         gap: 12px;
       }
-      .brand {
+      .top-right {
         display: flex;
         align-items: center;
-        gap: 9px;
-        font-weight: 600;
-        font-size: 14px;
-        white-space: nowrap;
-      }
-      .brand-box {
-        width: 28px;
-        height: 28px;
-        border-radius: 6px;
-        background: var(--surface);
-        border: 1px solid var(--border-light);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--accent);
+        gap: 8px;
       }
       .tools-bar {
         display: flex;
@@ -104,7 +38,7 @@
         gap: 3px;
         background: var(--bg);
         padding: 4px;
-        border-radius: 8px;
+        border-radius: var(--r-lg);
         border: 1px solid var(--border);
         overflow-x: auto;
       }
@@ -113,8 +47,9 @@
         color: var(--muted);
         border: none;
         padding: 6px 9px;
-        border-radius: 5px;
+        border-radius: var(--r-sm);
         cursor: pointer;
+        font-family: inherit;
         font-size: 12px;
         font-weight: 500;
         display: flex;
@@ -124,52 +59,33 @@
       }
       .tool-btn:hover {
         color: var(--text);
-        background: var(--surface);
+        background: var(--card-bg);
       }
       .tool-btn.active {
-        background: var(--surface-hover);
+        background: var(--hover-bg);
         color: var(--text);
         box-shadow: inset 0 0 0 1px var(--border-light);
-      }
-      .tool-btn:disabled,
-      .btn-export:disabled,
-      select:disabled,
-      input:disabled {
-        opacity: 0.32;
-        cursor: not-allowed;
-        pointer-events: none;
-        box-shadow: none;
-      }
-      .tool-btn.active:disabled {
-        pointer-events: none;
       }
       .divider {
         width: 1px;
         height: 20px;
         background: var(--border);
         margin: 0 3px;
+        flex: none;
       }
-      input[type="color"] {
-        width: 24px;
-        height: 24px;
-        border: 1px solid var(--border-light);
-        border-radius: 4px;
-        background: none;
-        cursor: pointer;
-      }
-      .top-right {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+      #strokeSize {
+        width: 74px;
+        padding: 4px;
+        flex: none;
       }
       .dim-pill {
         font-size: 11px;
         font-family: ui-monospace, monospace;
         color: var(--muted);
-        background: var(--surface);
+        background: var(--card-bg);
         border: 1px solid var(--border);
         padding: 5px 9px;
-        border-radius: 5px;
+        border-radius: var(--r-sm);
         white-space: nowrap;
       }
       .workspace {
@@ -198,38 +114,54 @@
         cursor: crosshair;
         background: #fff;
       }
-      .zoom-pill {
+      .zoom-pill,
+      .color-pill {
         position: fixed;
         left: 28px;
-        bottom: 22px;
         display: flex;
         align-items: center;
         gap: 2px;
         padding: 4px 6px;
-        background: var(--panel);
+        background: var(--chrome-bg);
         border: 1px solid var(--border);
-        border-radius: 999px;
+        border-radius: var(--r-pill);
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
         z-index: 30;
       }
-      .zoom-pill button {
+      .zoom-pill {
+        bottom: 22px;
+      }
+      .color-pill {
+        bottom: 64px;
+        display: none;
+      }
+      .color-pill.open {
+        display: flex;
+      }
+      .zoom-pill button,
+      .color-pill button {
         background: transparent;
         border: none;
         color: var(--text);
         font: inherit;
+        height: 26px;
+        border-radius: var(--r-pill);
+        cursor: pointer;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .zoom-pill button {
         font-size: 12px;
         min-width: 30px;
-        height: 26px;
         padding: 0 6px;
-        border-radius: 999px;
-        cursor: pointer;
       }
-      .zoom-pill button:hover {
-        background: var(--surface-hover);
+      .color-pill button {
+        font-size: 11px;
+        padding: 0 7px;
       }
-      .zoom-pill button:disabled {
-        opacity: 0.32;
-        cursor: not-allowed;
+      .zoom-pill button:hover,
+      .color-pill button:hover {
+        background: var(--hover-bg);
       }
       #zoomValue {
         font-variant-numeric: tabular-nums;
@@ -241,53 +173,20 @@
         background: var(--border);
         margin: 0 3px;
       }
-      .color-pill {
-        position: fixed;
-        left: 28px;
-        bottom: 64px;
-        display: none;
-        align-items: center;
-        gap: 2px;
-        padding: 4px 6px;
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
-        z-index: 30;
-      }
-      .color-pill.open {
-        display: flex;
-      }
       .color-swatch {
         width: 20px;
         height: 20px;
-        border-radius: 5px;
+        border-radius: var(--r-sm);
         border: 1px solid var(--border-light);
         flex-shrink: 0;
         margin-right: 4px;
-      }
-      .color-pill button {
-        background: transparent;
-        border: none;
-        color: var(--text);
-        font: inherit;
-        font-size: 11px;
-        height: 26px;
-        padding: 0 7px;
-        border-radius: 999px;
-        cursor: pointer;
-        white-space: nowrap;
-        font-variant-numeric: tabular-nums;
-      }
-      .color-pill button:hover {
-        background: var(--surface-hover);
       }
       #colorClose {
         color: var(--muted);
       }
       .sidebar {
         width: 330px;
-        background: var(--panel);
+        background: var(--chrome-bg);
         border-left: 1px solid var(--border);
         padding: 14px;
         overflow-y: auto;
@@ -295,74 +194,10 @@
         flex-direction: column;
         gap: 12px;
       }
-      .group {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 11px;
-        display: flex;
-        flex-direction: column;
-        gap: 9px;
-      }
-      .group-title {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--muted);
-        font-weight: 600;
-      }
-      .row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        font-size: 12px;
-      }
-      .row-label {
-        display: flex;
-        align-items: center;
+      .export-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         gap: 7px;
-      }
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        font-size: 12px;
-      }
-      .field-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-      }
-      .field-value {
-        font-family: monospace;
-        font-size: 11px;
-        color: var(--muted);
-      }
-      .row select {
-        width: 150px;
-        flex: none;
-      }
-      .sub-title {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--muted);
-        font-weight: 600;
-      }
-      .link-btn {
-        background: none;
-        border: none;
-        padding: 0;
-        color: var(--text);
-        font-size: 11px;
-        cursor: pointer;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-      }
-      .link-btn:hover {
-        color: var(--muted);
       }
       .meta {
         display: flex;
@@ -384,105 +219,13 @@
         margin: 0;
         overflow-wrap: anywhere;
       }
-      [hidden] {
-        display: none !important;
-      }
-      input[type="text"],
-      select {
-        background: var(--bg);
-        border: 1px solid var(--border);
-        color: var(--text);
-        padding: 6px 8px;
-        border-radius: 5px;
-        font-size: 12px;
-        width: 100%;
-        min-width: 0;
-        outline: none;
-      }
-      input[type="text"] {
-        text-overflow: ellipsis;
-      }
-      input[type="range"] {
-        accent-color: var(--accent);
-        cursor: pointer;
-        width: 100%;
-      }
-      .switch {
-        position: relative;
-        display: inline-block;
-        width: 32px;
-        height: 18px;
-      }
-      .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-      .slider {
-        position: absolute;
-        cursor: pointer;
-        inset: 0;
-        background-color: var(--border-light);
-        transition: 0.15s;
-        border-radius: 99px;
-      }
-      .slider:before {
-        position: absolute;
-        content: "";
-        height: 12px;
-        width: 12px;
-        left: 3px;
-        bottom: 3px;
-        background-color: #fff;
-        transition: 0.15s;
-        border-radius: 50%;
-      }
-      input:checked + .slider {
-        background-color: var(--accent);
-      }
-      input:checked + .slider:before {
-        transform: translateX(14px);
-      }
-
-      .export-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 7px;
-      }
-      .btn-export {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 8px 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border);
-        background: var(--bg);
-        color: var(--text);
-        font-weight: 500;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      .btn-export:hover {
-        background: var(--surface-hover);
-        border-color: var(--border-light);
-      }
-      .btn-export.primary {
-        grid-column: span 2;
-        background: var(--primary-bg);
-        color: var(--primary-text);
-        border-color: var(--primary-bg);
-        font-weight: 600;
-        padding: 10px;
-      }
-
       .history-drawer {
         position: absolute;
         top: 0;
         left: 0;
         bottom: 0;
         width: 300px;
-        background: var(--panel);
+        background: var(--chrome-bg);
         border-right: 1px solid var(--border);
         padding: 14px;
         overflow-y: auto;
@@ -496,10 +239,24 @@
       .history-drawer.open {
         transform: translateX(0);
       }
+      .drawer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .drawer-head > .section-title {
+        margin-bottom: 0;
+      }
+      #historyList {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
       .history-card {
-        background: var(--surface);
+        background: var(--card-bg);
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: var(--r-md);
         padding: 8px;
         cursor: pointer;
         display: flex;
@@ -548,15 +305,15 @@
         border-radius: 4px;
       }
       .history-del:hover {
-        color: #ef4444;
-        background: var(--surface-hover);
+        color: var(--danger);
+        background: var(--hover-bg);
       }
     </style>
   </head>
   <body>
     <div class="topbar">
       <div class="brand">
-        <div class="brand-box">
+        <div class="brand-tile">
           <svg viewBox="0 0 24 24">
             <path
               d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
@@ -667,7 +424,7 @@
           value="#ef4444"
           title="Annotation Color"
         />
-        <select id="strokeSize" style="width: 74px; padding: 4px">
+        <select id="strokeSize">
           <option value="3">Thin</option>
           <option value="5" selected>Med</option>
           <option value="10">Bold</option>
@@ -711,32 +468,11 @@
 
     <div class="workspace">
       <div class="history-drawer" id="historyDrawer">
-        <div
-          style="
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-          "
-        >
-          <div class="group-title">Capture History Manager</div>
-          <button
-            id="btnClearHistory"
-            style="
-              background: transparent;
-              border: none;
-              color: #ef4444;
-              font-size: 11px;
-              cursor: pointer;
-            "
-          >
-            Clear All
-          </button>
+        <div class="drawer-head">
+          <div class="section-title">Capture History Manager</div>
+          <button id="btnClearHistory" class="link-btn danger">Clear All</button>
         </div>
-        <div
-          id="historyList"
-          style="display: flex; flex-direction: column; gap: 8px"
-        ></div>
+        <div id="historyList"></div>
       </div>
 
       <div class="canvas-container" id="canvasWrap">
@@ -758,8 +494,8 @@
       </div>
 
       <div class="sidebar">
-        <div class="group">
-          <div class="group-title">Framing & Studio Backdrop</div>
+        <div class="card">
+          <div class="section-title">Framing &amp; Studio Backdrop</div>
           <div class="row">
             <label class="row-label" for="chkMacFrame"
               >Browser Window Header</label
@@ -820,8 +556,8 @@
           </div>
         </div>
 
-        <div class="group">
-          <div class="group-title">Output & PDF Mode</div>
+        <div class="card">
+          <div class="section-title">Output &amp; PDF Mode</div>
           <div class="field">
             <div class="field-head">
               <label for="fileNameInput">File Name</label>
@@ -852,29 +588,35 @@
               <label for="qualityRange">Image Quality</label>
               <span class="field-value" id="qualityVal">92%</span>
             </div>
-            <input type="range" id="qualityRange" min="10" max="100" value="92" />
+            <input
+              type="range"
+              id="qualityRange"
+              min="10"
+              max="100"
+              value="92"
+            />
           </div>
         </div>
 
-        <div class="group">
-          <div class="group-title">Export & Developer Actions</div>
-          <div class="sub-title">Save to file</div>
+        <div class="card">
+          <div class="section-title">Export &amp; Developer Actions</div>
+          <div class="section-title">Save to file</div>
           <div class="export-grid">
-            <button class="btn-export primary" id="dlPng">Download PNG</button>
-            <button class="btn-export" id="dlJpg">JPEG</button>
-            <button class="btn-export" id="dlWebp">WebP</button>
-            <button class="btn-export" id="dlPdf">Save PDF</button>
-            <button class="btn-export" id="btnPrint">Print</button>
+            <button class="btn primary span-2" id="dlPng">Download PNG</button>
+            <button class="btn" id="dlJpg">JPEG</button>
+            <button class="btn" id="dlWebp">WebP</button>
+            <button class="btn" id="dlPdf">Save PDF</button>
+            <button class="btn" id="btnPrint">Print</button>
           </div>
-          <div class="sub-title">Copy</div>
+          <div class="section-title">Copy</div>
           <div class="export-grid">
-            <button class="btn-export" id="btnCopy">Copy Image</button>
-            <button class="btn-export" id="btnBase64">Copy Base64</button>
+            <button class="btn" id="btnCopy">Copy Image</button>
+            <button class="btn" id="btnBase64">Copy Base64</button>
           </div>
         </div>
 
-        <div class="group">
-          <div class="group-title">Capture Metadata</div>
+        <div class="card">
+          <div class="section-title">Capture Metadata</div>
           <dl class="meta" id="metaInfo"></dl>
         </div>
       </div>

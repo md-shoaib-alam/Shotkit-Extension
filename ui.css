@@ -1,0 +1,373 @@
+/* Shotkit shared design tokens and components.
+   Loaded before each page's own <style>, so a page only restates what is
+   genuinely its own. Colours are referenced through roles, never raw hex. */
+
+:root {
+  /* Neutral scale, dark theme. */
+  --bg: #09090b;
+  --surface-1: #121215;
+  --surface-2: #18181b;
+  --surface-3: #27272a;
+  --border: #27272a;
+  --border-light: #3f3f46;
+  --text: #fafafa;
+  --muted: #a1a1aa;
+  --accent: #10b981;
+  --on-accent: #ffffff;
+  --primary-bg: #fafafa;
+  --primary-text: #09090b;
+  --danger: #ef4444;
+
+  --r-sm: 5px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-pill: 999px;
+
+  --card-pad: 11px;
+  --card-gap: 9px;
+  --row-pad: 7px;
+  --ctl-pad: 6px 8px;
+  --btn-pad: 9px 10px;
+  --tile-size: 28px;
+  --swatch-size: 24px;
+}
+
+body.light {
+  --bg: #f8fafc;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --border: #e2e8f0;
+  --border-light: #cbd5e1;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #059669;
+  --primary-bg: #0f172a;
+  --primary-text: #ffffff;
+}
+
+/* Role mapping. Defaults are the Studio page's shades; the popup restates the
+   two roles it historically draws from a different step of the scale. */
+body {
+  --chrome-bg: var(--surface-1);
+  --card-bg: var(--surface-2);
+  --hover-bg: var(--surface-3);
+  --inset-bg: var(--bg);
+  --grid-dot: var(--border);
+}
+body.light {
+  --grid-dot: var(--border-light);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  flex-shrink: 0;
+}
+.theme-moon {
+  display: none;
+}
+body.light .theme-sun {
+  display: none;
+}
+body.light .theme-moon {
+  display: block;
+}
+[hidden] {
+  display: none !important;
+}
+
+/* Brand lockup */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.brand-tile {
+  width: var(--tile-size);
+  height: var(--tile-size);
+  border-radius: var(--r-md);
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex: none;
+}
+
+/* Container + heading */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--card-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+}
+.card.rows {
+  gap: 0;
+}
+.section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+.card > .section-title {
+  margin-bottom: 0;
+}
+
+/* Label/control pairs */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.row-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.card.rows .row {
+  padding: var(--row-pad) 0;
+  border-bottom: 1px solid var(--border);
+}
+.card.rows .row:last-child {
+  border-bottom: none;
+}
+.card.rows .row-label {
+  cursor: pointer;
+}
+.card .row > select {
+  width: 150px;
+  flex: none;
+}
+.card.rows .row > select {
+  width: auto;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.field-value {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Toggle */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex: none;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--border-light);
+  transition: 0.15s;
+  border-radius: var(--r-pill);
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  transition: 0.15s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: var(--accent);
+}
+input:checked + .slider:before {
+  transform: translateX(14px);
+}
+
+/* Form controls */
+input[type="text"],
+select,
+textarea {
+  background: var(--inset-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: var(--ctl-pad);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-family: inherit;
+  width: 100%;
+  min-width: 0;
+  outline: none;
+}
+input[type="text"] {
+  text-overflow: ellipsis;
+}
+input[type="range"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 100%;
+}
+input[type="color"] {
+  width: var(--swatch-size);
+  height: var(--swatch-size);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}
+
+/* Buttons */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: var(--btn-pad);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+.btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-light);
+}
+.btn.spread {
+  justify-content: space-between;
+}
+.card .btn {
+  background: var(--inset-bg);
+}
+.card .btn:hover {
+  background: var(--hover-bg);
+}
+.btn.primary {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  border-color: var(--primary-bg);
+  font-weight: 600;
+}
+.btn.accent {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+.btn.primary:hover {
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+}
+.btn.accent:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.btn.span-2 {
+  grid-column: span 2;
+}
+.icon-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: var(--tile-size);
+  height: var(--tile-size);
+  border-radius: var(--r-md);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+.icon-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+  border-color: var(--border-light);
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover {
+  color: var(--muted);
+}
+.link-btn.danger {
+  color: var(--danger);
+  text-decoration: none;
+}
+.link-btn.danger:hover {
+  color: var(--danger);
+  text-decoration: underline;
+}
+
+:is(button, input, select, textarea):disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+}
