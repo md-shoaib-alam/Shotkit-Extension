@@ -155,7 +155,8 @@ body.light .theme-moon {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text);
+  /* Inherits so a label inside a filled button takes that button's foreground. */
+  color: inherit;
 }
 .card.rows .row {
   padding: var(--row-pad) 0;

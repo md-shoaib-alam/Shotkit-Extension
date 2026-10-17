@@ -10,6 +10,7 @@ const els = {
   btnRegion: document.getElementById("btnRegion"),
   btnElement: document.getElementById("btnElement"),
   btnStyleInspect: document.getElementById("btnStyleInspect"),
+  btnPicker: document.getElementById("btnPicker"),
   btnTheme: document.getElementById("btnTheme"),
   btnOpenStudio: document.getElementById("btnOpenStudio"),
   delaySelect: document.getElementById("delaySelect"),
@@ -23,7 +24,9 @@ const els = {
 chrome.storage.local.get(
   ["settings", "uiTheme", "isCapturing", "captureProgress"],
   (res) => {
-    if (res.uiTheme === "light") document.body.classList.add("light");
+    // Light ships as the default and is already on <body>, so only an
+    // explicit "dark" has to pull it off — and the first paint never flashes.
+    if (res.uiTheme === "dark") document.body.classList.remove("light");
     syncThemeLabel();
     if (res.settings) {
       els.delaySelect.value = res.settings.delay || "0";
@@ -122,6 +125,12 @@ els.btnElement.addEventListener("click", () => triggerCapture("element"));
 
 els.btnStyleInspect.addEventListener("click", () => {
   chrome.runtime.sendMessage({ action: "START_INSPECT" }, () => {
+    window.close();
+  });
+});
+
+els.btnPicker.addEventListener("click", () => {
+  chrome.runtime.sendMessage({ action: "START_PICKER" }, () => {
     window.close();
   });
 });

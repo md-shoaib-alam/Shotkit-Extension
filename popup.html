@@ -32,9 +32,12 @@
         gap: 6px;
       }
       .row-label svg {
-        color: var(--muted);
         width: 14px;
         height: 14px;
+      }
+      /* Only preference rows dim their icon; filled buttons carry their own. */
+      .card.rows .row-label svg {
+        color: var(--muted);
       }
       #normalView {
         display: block;
@@ -158,7 +161,7 @@
       }
     </style>
   </head>
-  <body>
+  <body class="light">
     <div class="header">
       <div class="brand">
         <div class="brand-tile">
@@ -262,6 +265,16 @@
             </svg>
             <span>Live CSS &amp; Style Inspector + Code Copy</span>
           </span>
+        </button>
+
+        <button id="btnPicker" class="btn spread span-2">
+          <span class="row-label">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+            </svg>
+            <span>Pick Any Colour From The Page</span>
+          </span>
+          <span class="kbd">Click &amp; Copy</span>
         </button>
       </div>
 

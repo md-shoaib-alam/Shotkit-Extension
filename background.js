@@ -27,6 +27,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.action === "START_INSPECT") {
     runInspectorFlow();
     sendResponse({ started: true });
+  } else if (msg.action === "START_PICKER") {
+    runPickerFlow();
+    sendResponse({ started: true });
+  } else if (msg.action === "GET_VISIBLE_BITMAP") {
+    // The frame-sampling fallback reads real pixels off a shot of the tab.
+    captureTabSafe(sender.tab && sender.tab.windowId)
+      .then((dataUrl) => sendResponse({ dataUrl }))
+      .catch(() => sendResponse(null));
+    return true;
   }
   return false;
 });
@@ -58,29 +67,62 @@ function endCapture(finalText) {
     .catch(() => {});
 }
 
-async function runInspectorFlow() {
+async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.url || tab.url.startsWith("chrome://")) return;
+  if (!tab || !tab.url || tab.url.startsWith("chrome://")) return null;
+  return tab;
+}
+
+async function injectAndSend(action, tabId) {
   await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
+    target: { tabId },
     files: ["content.js"],
   });
   const { uiTheme } = await chrome.storage.local.get("uiTheme");
-  chrome.tabs.sendMessage(tab.id, {
-    action: "launchStyleInspector",
-    theme: uiTheme,
-  });
+  chrome.tabs.sendMessage(tabId, { action, theme: uiTheme });
 }
 
+async function runInspectorFlow() {
+  const tab = await getActiveTab();
+  if (tab) await injectAndSend("launchStyleInspector", tab.id);
+}
+
+async function runPickerFlow() {
+  const tab = await getActiveTab();
+  if (tab) await injectAndSend("launchColorPicker", tab.id);
+}
+
+// Chrome rate-limits captureVisibleTab (MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND,
+// 2 calls/second documented and stricter on some builds), and the slice loop's
+// adaptive settle can clear a static page in ~40ms, so a fast page outruns the
+// quota and the capture aborts. A refusal is a timing problem, not an unfocused
+// window: wait out the strictest limit, then keep a gap that only widens if a
+// paced call is refused too.
+const CAPTURE_RETRY_MS = 250;
+const CAPTURE_QUOTA_BACKOFF_MS = 1100;
+const CAPTURE_GAP_MS = [600, 1200];
+let captureGapTier = -1;
+let lastCaptureAttemptAt = 0;
+
 async function captureTabSafe(windowId) {
-  // One short retry then throw. Five attempts with 600ms sleeps turned a single
-  // refused frame into 2.4s of silence and still reported the same error.
+  const gap = CAPTURE_GAP_MS[captureGapTier] || 0;
+  const wait = lastCaptureAttemptAt + gap - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  const shoot = () => {
+    lastCaptureAttemptAt = Date.now();
+    return chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+  };
   try {
-    return await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+    return await shoot();
   } catch (err) {
-    await new Promise((r) => setTimeout(r, 250));
+    const quota = /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND/i.test(err.message);
+    if (quota) {
+      captureGapTier = Math.min(captureGapTier + 1, CAPTURE_GAP_MS.length - 1);
+    }
+    const backoff = quota ? CAPTURE_QUOTA_BACKOFF_MS : CAPTURE_RETRY_MS;
+    await new Promise((r) => setTimeout(r, backoff));
     try {
-      return await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+      return await shoot();
     } catch (err2) {
       throw new Error(
         `Chrome refused the screen capture (${err2.message}). Keep this window focused and capture again.`,

@@ -94,6 +94,11 @@
       chipFg: "#ffffff",
       shadow: "rgba(0, 0, 0, 0.6)",
       modalShadow: "rgba(0, 0, 0, 0.8)",
+      // Box-model rings, outermost first. Opaque because nesting translucent
+      // fills composites them into one olive smear; the edge array draws each
+      // ring's own border so the layers separate by line as well as hue.
+      box: ["#2f2a1a", "#2c4022", "#57481f", "#24405c"],
+      boxEdge: ["#a89352", "#82b566", "#c9ae4e", "#6fa8dd"],
     },
     light: {
       bg: "#ffffff",
@@ -110,6 +115,8 @@
       chipFg: "#0f172a",
       shadow: "rgba(15, 23, 42, 0.18)",
       modalShadow: "rgba(15, 23, 42, 0.3)",
+      box: ["#fdf3d9", "#e3efd6", "#f7e6a8", "#cfe2f5"],
+      boxEdge: ["#a67f22", "#5c8442", "#8a701d", "#4a7dab"],
     },
   };
 
@@ -361,6 +368,409 @@
     };
   }
 
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
+  function rgbToHsl({ r, g, b }) {
+    const rn = r / 255;
+    const gn = g / 255;
+    const bn = b / 255;
+    const max = Math.max(rn, gn, bn);
+    const min = Math.min(rn, gn, bn);
+    const l = (max + min) / 2;
+    let h = 0;
+    let s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h =
+        max === rn
+          ? (gn - bn) / d + (gn < bn ? 6 : 0)
+          : max === gn
+            ? (bn - rn) / d + 2
+            : (rn - gn) / d + 4;
+      h /= 6;
+    }
+    return {
+      h: Math.round(h * 360),
+      s: Math.round(s * 100),
+      l: Math.round(l * 100),
+    };
+  }
+
+  function colorFormats(hex) {
+    const { r, g, b } = hexToRgb(hex);
+    const { h, s, l } = rgbToHsl({ r, g, b });
+    return {
+      hex: hex.toUpperCase(),
+      rgb: `rgb(${r}, ${g}, ${b})`,
+      hsl: `hsl(${h}, ${s}%, ${l}%)`,
+    };
+  }
+
+  // navigator.clipboard is missing on http pages, so keep the legacy path
+  // that still works there.
+  async function copyColor(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText =
+        "position:fixed;top:-10px;left:-10px;opacity:0;pointer-events:none;";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    }
+  }
+
+  function showColorChip(x, y, hex, theme, extra = {}) {
+    document.getElementById("smColorChip")?.remove();
+    const format = extra.format || "hex";
+    const formats = colorFormats(hex);
+    const chip = document.createElement("div");
+    chip.id = "smColorChip";
+    chip.style.cssText = `
+      position: fixed; z-index: 2147483647; font-family: sans-serif;
+      left: ${Math.max(8, Math.min(x, window.innerWidth - 212))}px;
+      top: ${Math.max(8, Math.min(y, window.innerHeight - 100))}px;
+      width: 196px; padding: 10px; border-radius: 10px;
+      background: ${theme.bg}; color: ${theme.text};
+      border: 1px solid ${theme.border}; box-shadow: 0 16px 32px ${theme.shadow};
+    `;
+    const picks = extra.picks || [];
+    chip.innerHTML = `
+      <style>
+        #smColorChip button { transition: background 0.12s, color 0.12s; }
+        #smColorChip button:hover { background: ${theme.chipBg}; color: ${theme.chipFg}; }
+      </style>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <span style="width:22px; height:22px; flex:none; border-radius:5px;
+          border:1px solid ${theme.swatchBorder}; background:${formats.hex};"></span>
+        <span data-value style="font-size:12px; font-weight:600; overflow-wrap:anywhere;">${formats[format]}</span>
+        <button data-close aria-label="Dismiss" style="margin-left:auto; flex:none; background:none;
+          border:none; color:${theme.muted}; cursor:pointer; font-size:11px;">&#10005;</button>
+      </div>
+      <div style="display:flex; gap:6px;">
+        ${["hex", "rgb", "hsl"]
+          .map(
+            (k) =>
+              `<button data-fmt="${k}" style="flex:1; padding:5px 0; cursor:pointer; text-transform:uppercase;
+                font-size:11px; font-weight:600; border-radius:6px;
+                background:${k === format ? theme.accent : theme.inset};
+                border:1px solid ${theme.border};
+                color:${k === format ? theme.onAccent : theme.body};">${k}</button>`,
+          )
+          .join("")}
+      </div>
+      ${
+        picks.length > 1
+          ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid ${theme.border};">
+              <div style="font-size:10px; color:${theme.muted}; margin-bottom:5px;">
+                Picks &middot; ${picks.length}</div>
+              ${picks
+                .map(
+                  (item, i) =>
+                    `<button data-pick="${i}" style="display:flex; align-items:center; gap:7px; width:100%;
+                      padding:3px 4px; margin-bottom:2px; cursor:pointer; border-radius:6px; border:1px solid transparent;
+                      background:${theme.inset}; color:${theme.body}; font-size:11px; font-weight:600;">
+                      <span style="width:12px; height:12px; flex:none; border-radius:3px;
+                        border:1px solid ${theme.swatchBorder}; background:${item};"></span>
+                      ${item}</button>`,
+                )
+                .join("")}
+            </div>`
+          : ""
+      }
+      ${
+        extra.onDone
+          ? `<button data-done style="margin-top:8px; width:100%; padding:6px 0; cursor:pointer;
+              border-radius:7px; border:1px solid ${theme.border};
+              background:${theme.card}; color:${theme.text}; font-size:11px; font-weight:600;">
+              Done &middot; Esc</button>`
+          : ""
+      }`;
+    document.body.appendChild(chip);
+
+    const value = chip.querySelector("[data-value]");
+    // Rows copy in whichever format was chosen last, even after this render.
+    let activeFormat = format;
+    chip.querySelectorAll("[data-fmt]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        activeFormat = btn.dataset.fmt;
+        const text = colorFormats(hex)[activeFormat];
+        value.textContent = text;
+        await copyColor(text);
+        if (extra.onFormat) extra.onFormat(activeFormat);
+      });
+    });
+    chip.querySelectorAll("[data-pick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const text = colorFormats(picks[Number(btn.dataset.pick)])[activeFormat];
+        value.textContent = text;
+        copyColor(text);
+      });
+    });
+    chip.querySelector("[data-close]").addEventListener("click", () => chip.remove());
+    if (extra.onDone) {
+      chip.querySelector("[data-done]").addEventListener("click", extra.onDone);
+    }
+    copyColor(formats.hex);
+  }
+
+  const PICK_CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
+    <g fill="none" stroke-linecap="round">
+      <path d="M15.9 3.4 22.6 10.1" stroke="#0f172a" stroke-width="4.6"/>
+      <path d="M15.9 3.4 22.6 10.1" stroke="#ffffff" stroke-width="2.4"/>
+      <path d="M18 7.4 9.3 16.1" stroke="#0f172a" stroke-width="3.8"/>
+      <path d="M18 7.4 9.3 16.1" stroke="#ffffff" stroke-width="1.9"/>
+      <path d="M9.1 16.3 4.6 23.2" stroke="#0f172a" stroke-width="3"/>
+      <path d="M9.1 16.3 4.6 23.2" stroke="#10b981" stroke-width="1.3"/>
+    </g></svg>`;
+
+  // Hotspot is the dropper tip, so the sampled pixel is the one the tip points at.
+  const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+    PICK_CURSOR_SVG,
+  )}") 5 23, crosshair`;
+
+  const PICK_HINT =
+    "Click a colour to copy it &middot; pick as many as you need &middot; Esc to stop";
+
+  function createPickBadge(theme) {
+    const badge = document.createElement("div");
+    badge.id = "smPickBadge";
+    badge.style.cssText = `
+      position: fixed; z-index: 2147483647; pointer-events: none; display: none;
+      align-items: center; gap: 6px; padding: 5px 7px;
+      border-radius: 7px; font-family: sans-serif; font-size: 11px; font-weight: 600;
+      background: ${theme.bg}; color: ${theme.text};
+      border: 1px solid ${theme.border}; box-shadow: 0 8px 20px ${theme.shadow};`;
+    badge.innerHTML = `<span data-dot style="width:13px; height:13px; flex:none; border-radius:4px;
+      border:1px solid ${theme.swatchBorder};"></span><span data-hex>&mdash;</span>`;
+    const dot = badge.querySelector("[data-dot]");
+    const hexLabel = badge.querySelector("[data-hex]");
+    document.body.appendChild(badge);
+    return {
+      el: badge,
+      // null hex means the frame behind the pointer is no longer trustworthy.
+      show(x, y, hex) {
+        badge.style.display = "flex";
+        hexLabel.textContent = hex || "\u2014";
+        dot.style.background = hex || "transparent";
+        const flipX = x > window.innerWidth - 130;
+        const flipY = y > window.innerHeight - 60;
+        badge.style.left = (flipX ? x - 118 : x + 16) + "px";
+        badge.style.top = (flipY ? y - 34 : y + 18) + "px";
+      },
+      remove() {
+        badge.remove();
+      },
+    };
+  }
+
+  function showPickNotice(theme, text) {
+    document.getElementById("smPickNotice")?.remove();
+    const pill = document.createElement("div");
+    pill.id = "smPickNotice";
+    pill.style.cssText = `
+      position: fixed; z-index: 2147483647; left: 50%; top: 12px;
+      transform: translateX(-50%); max-width: 92vw; padding: 9px 13px;
+      border-radius: 9px; font-family: sans-serif; font-size: 12px;
+      background: ${theme.bg}; color: ${theme.text};
+      border: 1px solid ${theme.border}; box-shadow: 0 16px 32px ${theme.shadow};`;
+    pill.textContent = text;
+    document.body.appendChild(pill);
+    setTimeout(() => pill.remove(), 5000);
+    return pill;
+  }
+
+  async function requestVisibleFrame() {
+    try {
+      return await chrome.runtime.sendMessage({ action: "GET_VISIBLE_BITMAP" });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Reads true rendered pixels off a still shot of the tab, so canvas art,
+  // images and gradients all answer. Chrome does not expose the native
+  // EyeDropper to an injected script, and this path needs no user gesture.
+  async function grabFrame() {
+    const frame = await requestVisibleFrame();
+    if (!frame || !frame.dataUrl) return null;
+    const img = new Image();
+    const loaded = await new Promise((resolve) => {
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = frame.dataUrl;
+    });
+    if (!loaded) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx || !canvas.width || !canvas.height) return null;
+    ctx.drawImage(img, 0, 0);
+    return ctx;
+  }
+
+  function hexFromFrame(ctx, x, y, dpr) {
+    const sx = Math.min(ctx.canvas.width - 1, Math.max(0, Math.round(x * dpr)));
+    const sy = Math.min(ctx.canvas.height - 1, Math.max(0, Math.round(y * dpr)));
+    const [r, g, b] = ctx.getImageData(sx, sy, 1, 1).data;
+    return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  const MAX_PICKS = 12;
+  const FRAME_REFRESH_MS = 250;
+
+  async function startColorPicker(themeName) {
+    const theme = HUD_THEMES[themeName === "dark" ? "dark" : "light"];
+    if (document.getElementById("smPickVeil")) return;
+
+    let ctx = await grabFrame();
+    if (!ctx) {
+      showPickNotice(
+        theme,
+        "Shotkit could not read this tab, so there is no colour to sample. Reload the page and try again.",
+      );
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    const picks = [];
+    let format = "hex";
+    // False between a scroll and the retake that follows it: until then every
+    // pixel in the still shot belongs to a page that is no longer there.
+    let frameIsCurrent = true;
+    let pointer = { x: -1, y: -1 };
+
+    const veil = document.createElement("div");
+    veil.id = "smPickVeil";
+    // Deliberately untinted: the sampler shows the user the same pixels they
+    // are picking from, so any dimming here would make the copied colour
+    // disagree with what is on screen under the tip.
+    veil.style.cssText = `position:fixed; inset:0; z-index:2147483646; background:none; cursor:${PICK_CURSOR};`;
+    veil.innerHTML = `<div style="position:absolute; top:12px; left:50%; transform:translateX(-50%);
+      padding:9px 13px; border-radius:9px; font-family:sans-serif; font-size:12px;
+      background:${theme.bg}; color:${theme.text}; border:1px solid ${theme.border};
+      box-shadow:0 16px 32px ${theme.shadow};">${PICK_HINT}</div>`;
+    document.body.appendChild(veil);
+
+    const badge = createPickBadge(theme);
+
+    let frameQueued = false;
+    const paintBadge = () => {
+      badge.show(
+        pointer.x,
+        pointer.y,
+        frameIsCurrent
+          ? hexFromFrame(ctx, pointer.x, pointer.y, dpr).toUpperCase()
+          : null,
+      );
+    };
+    const onMove = (ev) => {
+      pointer = { x: ev.clientX, y: ev.clientY };
+      // One pixel read per animation frame keeps getImageData off the move path.
+      if (frameQueued) return;
+      frameQueued = true;
+      requestAnimationFrame(() => {
+        frameQueued = false;
+        paintBadge();
+      });
+    };
+
+    let refreshTimer = null;
+    let refreshing = false;
+    let retakeWanted = false;
+    let stopped = false;
+    const scheduleRetake = () => {
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        if (stopped) return;
+        // A scroll during a capture means that capture is already history;
+        // mark it and the tail below takes a third pass.
+        if (refreshing) {
+          retakeWanted = true;
+          return;
+        }
+        retakeWanted = false;
+        refreshing = true;
+        grabFrame().then((next) => {
+          refreshing = false;
+          if (stopped) return;
+          if (!next) {
+            showPickNotice(
+              theme,
+              "Shotkit lost the tab while you were picking, so colours stopped updating.",
+            );
+            return;
+          }
+          ctx = next;
+          frameIsCurrent = true;
+          if (pointer.x >= 0) paintBadge();
+          if (retakeWanted) scheduleRetake();
+        });
+      }, FRAME_REFRESH_MS);
+    };
+    const onPageMoved = () => {
+      if (frameIsCurrent) {
+        frameIsCurrent = false;
+        if (pointer.x >= 0) badge.show(pointer.x, pointer.y, null);
+      }
+      scheduleRetake();
+    };
+
+    const finish = () => {
+      stopped = true;
+      veil.remove();
+      badge.remove();
+      veil.removeEventListener("click", onPick, true);
+      veil.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("scroll", onPageMoved, true);
+      window.removeEventListener("resize", onPageMoved, true);
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+
+    function onPick(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      // A stale frame would hand back a colour from before the scroll.
+      if (!frameIsCurrent) return;
+      const hex = hexFromFrame(ctx, ev.clientX, ev.clientY, dpr).toUpperCase();
+      picks.unshift(hex);
+      if (picks.length > MAX_PICKS) picks.length = MAX_PICKS;
+      showColorChip(ev.clientX, ev.clientY, hex, theme, {
+        picks,
+        format,
+        onFormat: (next) => {
+          format = next;
+        },
+        onDone: finish,
+      });
+    }
+
+    const onKey = (ev) => {
+      if (ev.key === "Escape") {
+        ev.stopPropagation();
+        finish();
+      }
+    };
+
+    veil.addEventListener("click", onPick, true);
+    veil.addEventListener("pointermove", onMove, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("scroll", onPageMoved, true);
+    window.addEventListener("resize", onPageMoved, true);
+  }
+
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "preparePage") {
       scrollTarget = findScrollableElement();
@@ -580,10 +990,13 @@
       document.addEventListener("click", onClick, true);
       window.addEventListener("keydown", onKey, true);
       return true;
+    } else if (request.action === "launchColorPicker") {
+      startColorPicker(request.theme);
+      sendResponse({ started: true });
     } else if (request.action === "launchStyleInspector") {
       if (document.getElementById("shotkitStyleHUD")) return;
 
-      const theme = HUD_THEMES[request.theme === "light" ? "light" : "dark"];
+      const theme = HUD_THEMES[request.theme === "dark" ? "dark" : "light"];
       const hud = document.createElement("div");
       hud.id = "shotkitStyleHUD";
       hud.style.cssText = `
@@ -592,14 +1005,20 @@
         z-index: 2147483647; box-shadow: 0 20px 40px ${theme.shadow};
       `;
       hud.innerHTML = `
-        <div style="font-weight:700; color:${theme.accent}; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-          <span>Style &amp; Element Inspector</span>
-          <div>
-            <span style="font-size:10px; color:${theme.muted}; margin-right:8px;">Click = export · Alt+Click = measure</span>
-            <button id="smCloseHUD" style="background:${theme.chipBg}; color:${theme.chipFg}; border:none; padding:2px 6px; border-radius:4px; cursor:pointer;">✕</button>
-          </div>
+        <style>
+          #smCloseHUD { transition: background 0.12s, border-color 0.12s, color 0.12s; }
+          #smCloseHUD:hover {
+            background: ${theme.chipBg};
+            border-color: ${theme.swatchBorder};
+            color: ${theme.text};
+          }
+        </style>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div style="font-weight:700; color:${theme.accent}; line-height:1.35;">Style &amp; Element Inspector</div>
+          <button id="smCloseHUD" aria-label="Close inspector" title="Close" style="flex:none; width:22px; height:22px; display:flex; align-items:center; justify-content:center; background:${theme.inset}; color:${theme.muted}; border:1px solid ${theme.border}; border-radius:6px; font-size:12px; line-height:1; cursor:pointer;">✕</button>
         </div>
-        <div id="smStyleContent" style="display:flex; flex-direction:column; gap:4px; max-height:210px; overflow-y:auto; color:${theme.body};">
+        <div style="font-size:10px; color:${theme.muted}; margin:3px 0 10px;">Click = export · Alt+Click = measure</div>
+        <div id="smStyleContent" style="display:flex; flex-direction:column; gap:4px; max-height:210px; overflow-y:auto; color:${theme.body}; line-height:1.45; overflow-wrap:anywhere;">
           Hover any element...
         </div>
         <div id="smBoxModel" style="margin-top:10px; display:none;"></div>
@@ -623,11 +1042,17 @@
         return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
       };
 
-      function layer(label, vals, inner, bg) {
-        return `<div style="background:${bg}; padding:5px 6px; border-radius:4px; font-size:10px; color:${theme.body};">
-          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-            <span style="opacity:.6">${label}</span><span>${vals.join("  ")}</span>
-          </div>${inner}</div>`;
+      const cells = (vals) =>
+        `<span style="min-width:16px; text-align:right;">${vals.join(
+          "</span><span style=\"min-width:16px; text-align:right;\">",
+        )}</span>`;
+
+      function ring(label, values, inner, i) {
+        return `<div style="background:${theme.box[i]}; border:1px solid ${theme.boxEdge[i]}; border-radius:5px; padding:5px 6px; font-size:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;${inner ? " margin-bottom:3px;" : ""}">
+            <span style="color:${theme.body}">${label}</span>
+            <span style="display:flex; gap:7px; color:${theme.text}; font-variant-numeric:tabular-nums;">${values}</span>
+          </div>${inner || ""}</div>`;
       }
 
       function boxModelHtml(el) {
@@ -637,18 +1062,16 @@
         const p = [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(pxOf);
         const cw = Math.max(0, (el.clientWidth || 0) - p[1] - p[3]);
         const ch = Math.max(0, (el.clientHeight || 0) - p[0] - p[2]);
-        const content = `<div style="background:rgba(74,144,226,.35); border-radius:4px; padding:5px 6px; font-size:10px; display:flex; justify-content:space-between;">
-          <span style="opacity:.6">content</span><span>${cw} × ${ch}</span></div>`;
-        return layer(
+        return ring(
           "margin",
-          m,
-          layer(
+          cells(m),
+          ring(
             "border",
-            bd,
-            layer("padding", p, content, "rgba(253,224,139,.3)"),
-            "rgba(196,224,150,.3)",
+            cells(bd),
+            ring("padding", cells(p), ring("content", `${cw} × ${ch}`, "", 3), 2),
+            1,
           ),
-          "rgba(249,215,126,.22)",
+          0,
         );
       }
 
