@@ -530,7 +530,7 @@
       `;
       hud.innerHTML = `
         <div style="font-weight:700; color:#10b981; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-          <span>🎨 Style & Element Inspector</span>
+          <span>Style & Element Inspector</span>
           <div>
             <span style="font-size:10px; color:#a1a1aa; margin-right:8px;">Click = export · Alt+Click = measure</span>
             <button id="smCloseHUD" style="background:#27272a; color:#fff; border:none; padding:2px 6px; border-radius:4px; cursor:pointer;">✕</button>
@@ -750,7 +750,7 @@
         `;
         modal.innerHTML = `
           <div style="font-weight:700; font-size:15px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-            <span>✨ Export Element Code</span>
+            <span>Export Element Code</span>
             <button id="smCloseModal" style="background:transparent; color:#a1a1aa; border:none; font-size:16px; cursor:pointer;">✕</button>
           </div>
           <div id="smTabs" style="display:flex; gap:6px; margin-bottom:10px;"></div>
