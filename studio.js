@@ -40,6 +40,12 @@ const ui = {
   zoomIn: document.getElementById("zoomIn"),
   zoomOut: document.getElementById("zoomOut"),
   zoomFit: document.getElementById("zoomFit"),
+  colorPill: document.getElementById("colorPill"),
+  colorSwatch: document.getElementById("colorSwatch"),
+  copyHex: document.getElementById("copyHex"),
+  copyRgb: document.getElementById("copyRgb"),
+  copyHsl: document.getElementById("copyHsl"),
+  colorClose: document.getElementById("colorClose"),
 };
 
 const toolButtons = Array.from(
@@ -281,6 +287,7 @@ function loadCaptureIntoStudio(cap) {
   captureMeta = cap;
   annotations = [];
   stepCounter = 1;
+  ui.colorPill.classList.remove("open");
   const cleanTitle = (cap.title || "screenshot")
     .replace(/[^a-z0-9-_]/gi, "_")
     .slice(0, 40);
@@ -686,6 +693,58 @@ async function copyText(text, okLabel) {
   }
 }
 
+let lastColors = { hex: "", rgb: "", hsl: "" };
+
+function rgbToHex(r, g, b) {
+  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+
+function rgbToHsl(r, g, b) {
+  const [n1, n2, n3] = [r, g, b].map((v) => v / 255);
+  const max = Math.max(n1, n2, n3);
+  const min = Math.min(n1, n2, n3);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  let s = 0;
+  if (d) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === n1) h = (n2 - n3) / d + (n2 < n3 ? 6 : 0);
+    else if (max === n2) h = (n3 - n1) / d + 2;
+    else h = (n1 - n2) / d + 4;
+    h /= 6;
+  }
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+}
+
+function showColorReadout(r, g, b) {
+  const [h, s, l] = rgbToHsl(r, g, b);
+  lastColors = {
+    hex: rgbToHex(r, g, b).toUpperCase(),
+    rgb: `rgb(${r}, ${g}, ${b})`,
+    hsl: `hsl(${h}, ${s}%, ${l}%)`,
+  };
+  ui.colorSwatch.style.background = lastColors.hex;
+  ui.copyHex.textContent = lastColors.hex;
+  ui.copyRgb.textContent = lastColors.rgb;
+  ui.copyHsl.textContent = lastColors.hsl;
+  ui.colorPill.classList.add("open");
+}
+
+[
+  [ui.copyHex, "hex"],
+  [ui.copyRgb, "rgb"],
+  [ui.copyHsl, "hsl"],
+].forEach(([btn, key]) => {
+  btn.addEventListener("click", () => {
+    copyText(lastColors[key], `Copied ${lastColors[key]}`);
+  });
+});
+
+ui.colorClose.addEventListener("click", () => {
+  ui.colorPill.classList.remove("open");
+});
+
 function getCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = rect.width ? canvas.width / rect.width : 1;
@@ -727,11 +786,8 @@ canvas.addEventListener("mousedown", (e) => {
     const px = Math.max(0, Math.min(canvas.width - 1, Math.floor(x)));
     const py = Math.max(0, Math.min(canvas.height - 1, Math.floor(y)));
     const p = ctx.getImageData(px, py, 1, 1).data;
-    const hex =
-      "#" +
-      [p[0], p[1], p[2]].map((v) => v.toString(16).padStart(2, "0")).join("");
-    ui.color.value = hex;
-    copyText(hex, `Copied ${hex.toUpperCase()}`);
+    showColorReadout(p[0], p[1], p[2]);
+    ui.color.value = rgbToHex(p[0], p[1], p[2]);
     return;
   }
 

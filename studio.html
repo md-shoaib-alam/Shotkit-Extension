@@ -241,6 +241,50 @@
         background: var(--border);
         margin: 0 3px;
       }
+      .color-pill {
+        position: fixed;
+        left: 28px;
+        bottom: 64px;
+        display: none;
+        align-items: center;
+        gap: 2px;
+        padding: 4px 6px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+        z-index: 30;
+      }
+      .color-pill.open {
+        display: flex;
+      }
+      .color-swatch {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        border: 1px solid var(--border-light);
+        flex-shrink: 0;
+        margin-right: 4px;
+      }
+      .color-pill button {
+        background: transparent;
+        border: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 11px;
+        height: 26px;
+        padding: 0 7px;
+        border-radius: 999px;
+        cursor: pointer;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .color-pill button:hover {
+        background: var(--surface-hover);
+      }
+      #colorClose {
+        color: var(--muted);
+      }
       .sidebar {
         width: 330px;
         background: var(--panel);
@@ -535,11 +579,15 @@
           </svg>
           <span>Crop</span>
         </button>
-        <button class="tool-btn" data-tool="picker">
+        <button
+          class="tool-btn"
+          data-tool="picker"
+          title="Copy the color of any pixel"
+        >
           <svg viewBox="0 0 24 24">
             <path d="M2 22l5-5m9-14l5 5-11 11H5v-5L16 3z" />
           </svg>
-          <span>HEX Pick</span>
+          <span>Color</span>
         </button>
 
         <div class="divider"></div>
@@ -629,6 +677,13 @@
           <button id="zoomIn" title="Zoom in">+</button>
           <span class="zoom-sep"></span>
           <button id="zoomFit" title="Fit to width">⤢</button>
+        </div>
+        <div class="color-pill" id="colorPill">
+          <span class="color-swatch" id="colorSwatch"></span>
+          <button id="copyHex" title="Copy HEX"></button>
+          <button id="copyRgb" title="Copy RGB"></button>
+          <button id="copyHsl" title="Copy HSL"></button>
+          <button id="colorClose" title="Dismiss">&#10005;</button>
         </div>
       </div>
 
