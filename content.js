@@ -75,6 +75,44 @@
     "rgba(0, 0, 0, 0)",
   ]);
 
+  // The inspector HUD and its export modal are the extension's own chrome
+  // sitting on someone else's page, so they carry the same two themes as the
+  // popup and Studio. background.js tells us which one is active.
+  const HUD_THEMES = {
+    dark: {
+      bg: "#09090b",
+      card: "#121215",
+      inset: "#18181b",
+      border: "#27272a",
+      swatchBorder: "#52525b",
+      text: "#fafafa",
+      body: "#d4d4d8",
+      muted: "#a1a1aa",
+      accent: "#10b981",
+      onAccent: "#ffffff",
+      chipBg: "#27272a",
+      chipFg: "#ffffff",
+      shadow: "rgba(0, 0, 0, 0.6)",
+      modalShadow: "rgba(0, 0, 0, 0.8)",
+    },
+    light: {
+      bg: "#ffffff",
+      card: "#f8fafc",
+      inset: "#f1f5f9",
+      border: "#e2e8f0",
+      swatchBorder: "#cbd5e1",
+      text: "#0f172a",
+      body: "#334155",
+      muted: "#64748b",
+      accent: "#059669",
+      onAccent: "#ffffff",
+      chipBg: "#e2e8f0",
+      chipFg: "#0f172a",
+      shadow: "rgba(15, 23, 42, 0.18)",
+      modalShadow: "rgba(15, 23, 42, 0.3)",
+    },
+  };
+
   // Logical twins of a property we already print, or values derived from the
   // element's own box, so they differ from the probe on every element.
   const DERIVED_CSS = new Set([
@@ -545,26 +583,27 @@
     } else if (request.action === "launchStyleInspector") {
       if (document.getElementById("shotkitStyleHUD")) return;
 
+      const theme = HUD_THEMES[request.theme === "light" ? "light" : "dark"];
       const hud = document.createElement("div");
       hud.id = "shotkitStyleHUD";
       hud.style.cssText = `
-        position: fixed; bottom: 20px; right: 20px; width: 360px; background: #09090b; color: #fafafa;
-        border: 1px solid #27272a; border-radius: 10px; padding: 14px; font-family: sans-serif; font-size: 12px;
-        z-index: 2147483647; box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        position: fixed; bottom: 20px; right: 20px; width: 360px; background: ${theme.bg}; color: ${theme.text};
+        border: 1px solid ${theme.border}; border-radius: 10px; padding: 14px; font-family: sans-serif; font-size: 12px;
+        z-index: 2147483647; box-shadow: 0 20px 40px ${theme.shadow};
       `;
       hud.innerHTML = `
-        <div style="font-weight:700; color:#10b981; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-          <span>Style & Element Inspector</span>
+        <div style="font-weight:700; color:${theme.accent}; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+          <span>Style &amp; Element Inspector</span>
           <div>
-            <span style="font-size:10px; color:#a1a1aa; margin-right:8px;">Click = export · Alt+Click = measure</span>
-            <button id="smCloseHUD" style="background:#27272a; color:#fff; border:none; padding:2px 6px; border-radius:4px; cursor:pointer;">✕</button>
+            <span style="font-size:10px; color:${theme.muted}; margin-right:8px;">Click = export · Alt+Click = measure</span>
+            <button id="smCloseHUD" style="background:${theme.chipBg}; color:${theme.chipFg}; border:none; padding:2px 6px; border-radius:4px; cursor:pointer;">✕</button>
           </div>
         </div>
-        <div id="smStyleContent" style="display:flex; flex-direction:column; gap:4px; max-height:210px; overflow-y:auto; color:#d4d4d8;">
+        <div id="smStyleContent" style="display:flex; flex-direction:column; gap:4px; max-height:210px; overflow-y:auto; color:${theme.body};">
           Hover any element...
         </div>
         <div id="smBoxModel" style="margin-top:10px; display:none;"></div>
-        <div id="smAnchorNote" style="margin-top:8px; font-size:10px; color:#10b981; display:none;"></div>
+        <div id="smAnchorNote" style="margin-top:8px; font-size:10px; color:${theme.accent}; display:none;"></div>
       `;
       document.body.appendChild(hud);
 
@@ -585,7 +624,7 @@
       };
 
       function layer(label, vals, inner, bg) {
-        return `<div style="background:${bg}; padding:5px 6px; border-radius:4px; font-size:10px; color:#e4e4e7;">
+        return `<div style="background:${bg}; padding:5px 6px; border-radius:4px; font-size:10px; color:${theme.body};">
           <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
             <span style="opacity:.6">${label}</span><span>${vals.join("  ")}</span>
           </div>${inner}</div>`;
@@ -626,11 +665,11 @@
 
       function guide(x, y, w, h, label, vertical) {
         const line = document.createElement("div");
-        line.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:${w}px; height:${h}px; background:repeating-linear-gradient(${vertical ? "to bottom" : "to right"}, #10b981 0 4px, transparent 4px 8px);`;
+        line.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:${w}px; height:${h}px; background:repeating-linear-gradient(${vertical ? "to bottom" : "to right"}, ${theme.accent} 0 4px, transparent 4px 8px);`;
         paint(line);
         const tag = document.createElement("div");
         tag.textContent = label;
-        tag.style.cssText = `position:fixed; left:${x + w / 2}px; top:${y + h / 2}px; transform:translate(-50%,-50%); background:#10b981; color:#000; font-size:10px; font-weight:700; padding:1px 5px; border-radius:3px; font-family:sans-serif;`;
+        tag.style.cssText = `position:fixed; left:${x + w / 2}px; top:${y + h / 2}px; transform:translate(-50%,-50%); background:${theme.accent}; color:#000; font-size:10px; font-weight:700; padding:1px 5px; border-radius:3px; font-family:sans-serif;`;
         paint(tag);
       }
 
@@ -700,7 +739,7 @@
           s.backgroundColor === "transparent" ||
           s.backgroundColor === "rgba(0, 0, 0, 0)";
         const swatch = (c) =>
-          `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px solid #52525b;background:${c};vertical-align:-1px;margin-right:5px;"></span>`;
+          `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px solid ${theme.swatchBorder};background:${c};vertical-align:-1px;margin-right:5px;"></span>`;
         const row = (k, v) => `<div><strong>${k}:</strong> ${v}</div>`;
         const clip = (v, n) => (v.length > n ? v.slice(0, n) + "…" : v);
         const shadow = s.boxShadow && s.boxShadow !== "none" ? s.boxShadow : "none";
@@ -769,19 +808,19 @@
         modal.id = "smCodeModal";
         modal.style.cssText = `
           position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 520px; max-width: 92vw;
-          background: #121215; color: #fafafa; border: 1px solid #27272a; border-radius: 12px;
-          padding: 20px; z-index: 2147483647; box-shadow: 0 30px 60px rgba(0,0,0,0.8); font-family: sans-serif;
+          background: ${theme.card}; color: ${theme.text}; border: 1px solid ${theme.border}; border-radius: 12px;
+          padding: 20px; z-index: 2147483647; box-shadow: 0 30px 60px ${theme.modalShadow}; font-family: sans-serif;
         `;
         modal.innerHTML = `
           <div style="font-weight:700; font-size:15px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
             <span>Export Element Code</span>
-            <button id="smCloseModal" style="background:transparent; color:#a1a1aa; border:none; font-size:16px; cursor:pointer;">✕</button>
+            <button id="smCloseModal" style="background:transparent; color:${theme.muted}; border:none; font-size:16px; cursor:pointer;">✕</button>
           </div>
           <div id="smTabs" style="display:flex; gap:6px; margin-bottom:10px;"></div>
-          <textarea id="smCodeArea" readonly style="width:100%; height:260px; background:#09090b; color:#d4d4d8; border:1px solid #27272a; border-radius:6px; padding:10px; font-family:monospace; font-size:11px; resize:vertical;"></textarea>
+          <textarea id="smCodeArea" readonly style="width:100%; height:260px; background:${theme.bg}; color:${theme.body}; border:1px solid ${theme.border}; border-radius:6px; padding:10px; font-family:monospace; font-size:11px; resize:vertical;"></textarea>
           <div style="display:flex; gap:8px; margin-top:14px;">
-            <button id="smCopyCode" style="flex:1; padding:9px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:600; cursor:pointer;">Copy</button>
-            <button id="smDownloadCode" style="flex:1; padding:9px; background:#27272a; color:#fff; border:none; border-radius:6px; font-weight:600; cursor:pointer;">Download File</button>
+            <button id="smCopyCode" style="flex:1; padding:9px; background:${theme.accent}; color:${theme.onAccent}; border:none; border-radius:6px; font-weight:600; cursor:pointer;">Copy</button>
+            <button id="smDownloadCode" style="flex:1; padding:9px; background:${theme.chipBg}; color:${theme.chipFg}; border:none; border-radius:6px; font-weight:600; cursor:pointer;">Download File</button>
           </div>
         `;
         document.body.appendChild(modal);
@@ -794,10 +833,10 @@
           tabs.forEach((t) => {
             const b = document.createElement("button");
             b.textContent = t.label;
-            b.style.cssText = `padding:6px 16px; border-radius:6px; border:1px solid #27272a; cursor:pointer; font-weight:600; font-size:12px; ${
+            b.style.cssText = `padding:6px 16px; border-radius:6px; border:1px solid ${theme.border}; cursor:pointer; font-weight:600; font-size:12px; ${
               t.id === activeTab
-                ? "background:#10b981; color:#fff; border-color:#10b981;"
-                : "background:#18181b; color:#a1a1aa;"
+                ? `background:${theme.accent}; color:${theme.onAccent}; border-color:${theme.accent};`
+                : `background:${theme.inset}; color:${theme.muted};`
             }`;
             b.onclick = () => {
               activeTab = t.id;

@@ -65,7 +65,11 @@ async function runInspectorFlow() {
     target: { tabId: tab.id },
     files: ["content.js"],
   });
-  chrome.tabs.sendMessage(tab.id, { action: "launchStyleInspector" });
+  const { uiTheme } = await chrome.storage.local.get("uiTheme");
+  chrome.tabs.sendMessage(tab.id, {
+    action: "launchStyleInspector",
+    theme: uiTheme,
+  });
 }
 
 async function captureTabSafe(windowId) {
