@@ -336,12 +336,29 @@
         });
       }
 
-      setTimeout(
-        () => {
-          sendResponse({ actualScrollY: getScrollTop(scrollTarget) });
-        },
-        Math.max(520, request.speed || 550),
-      );
+      // The scroll itself is instant, so the only reason to wait is lazy-load.
+      // Answer as soon as the incoming viewport has no image still decoding;
+      // `speed` is the ceiling for slow pages, not a fixed sleep per slice.
+      const cap = Math.max(150, request.speed || 550);
+      const startedAt = performance.now();
+      const pendingInView = () => {
+        let n = 0;
+        for (const img of document.images) {
+          if (img.complete && img.naturalWidth !== 0) continue;
+          const r = img.getBoundingClientRect();
+          if (r.bottom > 0 && r.top < window.innerHeight) n++;
+        }
+        return n;
+      };
+      const settle = () => {
+        const waited = performance.now() - startedAt;
+        if (waited < 40 || (pendingInView() > 0 && waited < cap)) {
+          setTimeout(settle, 24);
+          return;
+        }
+        sendResponse({ actualScrollY: getScrollTop(scrollTarget) });
+      };
+      settle();
       return true;
     } else if (request.action === "restorePage") {
       fixedElements.forEach((item) => {

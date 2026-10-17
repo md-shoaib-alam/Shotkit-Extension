@@ -69,14 +69,20 @@ async function runInspectorFlow() {
 }
 
 async function captureTabSafe(windowId) {
-  for (let i = 0; i < 4; i++) {
+  // One short retry then throw. Five attempts with 600ms sleeps turned a single
+  // refused frame into 2.4s of silence and still reported the same error.
+  try {
+    return await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+  } catch (err) {
+    await new Promise((r) => setTimeout(r, 250));
     try {
       return await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
-    } catch (e) {
-      await new Promise((r) => setTimeout(r, 600));
+    } catch (err2) {
+      throw new Error(
+        `Chrome refused the screen capture (${err2.message}). Keep this window focused and capture again.`,
+      );
     }
   }
-  return await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
 }
 
 function sendTabMessage(tabId, payload) {
