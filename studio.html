@@ -60,6 +60,15 @@
         fill: none;
         flex-shrink: 0;
       }
+      .theme-moon {
+        display: none;
+      }
+      body.light .theme-sun {
+        display: none;
+      }
+      body.light .theme-moon {
+        display: block;
+      }
       .topbar {
         height: 56px;
         background: var(--panel);
@@ -565,14 +574,18 @@
         <button
           class="tool-btn"
           id="btnThemeStudio"
-          title="Switch Light / Dark Mode"
+          title="Switch to light mode"
+          aria-label="Switch to light mode"
         >
-          <svg viewBox="0 0 24 24">
+          <svg class="theme-sun" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="5" />
             <line x1="12" y1="1" x2="12" y2="3" />
             <line x1="12" y1="21" x2="12" y2="23" />
             <line x1="1" y1="12" x2="3" y2="12" />
             <line x1="21" y1="12" x2="23" y2="12" />
+          </svg>
+          <svg class="theme-moon" viewBox="0 0 24 24">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
         </button>
       </div>

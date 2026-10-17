@@ -24,6 +24,7 @@ chrome.storage.local.get(
   ["settings", "uiTheme", "isCapturing", "captureProgress"],
   (res) => {
     if (res.uiTheme === "light") document.body.classList.add("light");
+    syncThemeLabel();
     if (res.settings) {
       els.delaySelect.value = res.settings.delay || "0";
       els.speedSelect.value = res.settings.speed || "550";
@@ -80,7 +81,16 @@ function saveSettings() {
 els.btnTheme.addEventListener("click", () => {
   const isLight = document.body.classList.toggle("light");
   chrome.storage.local.set({ uiTheme: isLight ? "light" : "dark" });
+  syncThemeLabel();
 });
+
+function syncThemeLabel() {
+  const label = document.body.classList.contains("light")
+    ? "Switch to dark mode"
+    : "Switch to light mode";
+  els.btnTheme.title = label;
+  els.btnTheme.setAttribute("aria-label", label);
+}
 
 els.btnOpenStudio.addEventListener("click", () => {
   chrome.tabs.create({ url: chrome.runtime.getURL("studio.html") });

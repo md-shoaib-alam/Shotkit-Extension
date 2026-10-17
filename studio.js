@@ -83,6 +83,7 @@ chrome.storage.local.get(
   ["uiTheme", "pendingCapture", "lastCapture", "captureHistory"],
   async (res) => {
     if (res.uiTheme === "light") document.body.classList.add("light");
+    syncThemeLabel();
 
     try {
       if (res.pendingCapture) {
@@ -353,7 +354,17 @@ function escapeHtml(str) {
 document.getElementById("btnThemeStudio").addEventListener("click", () => {
   const isLight = document.body.classList.toggle("light");
   chrome.storage.local.set({ uiTheme: isLight ? "light" : "dark" });
+  syncThemeLabel();
 });
+
+function syncThemeLabel() {
+  const label = document.body.classList.contains("light")
+    ? "Switch to dark mode"
+    : "Switch to light mode";
+  const btn = document.getElementById("btnThemeStudio");
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+}
 
 document.getElementById("btnHistory").addEventListener("click", () => {
   ui.historyDrawer.classList.toggle("open");
