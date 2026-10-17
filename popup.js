@@ -4,6 +4,7 @@ const els = {
   captureStatusText: document.getElementById("captureStatusText"),
   captureProgressBar: document.getElementById("captureProgressBar"),
   btnStopCapture: document.getElementById("btnStopCapture"),
+  btnPartial: document.getElementById("btnPartial"),
   btnFull: document.getElementById("btnFull"),
   btnVisible: document.getElementById("btnVisible"),
   btnRegion: document.getElementById("btnRegion"),
@@ -118,6 +119,13 @@ els.btnStyleInspect.addEventListener("click", () => {
 els.btnStopCapture.addEventListener("click", () => {
   // background's endCapture() clears isCapturing and stores "Capture stopped".
   chrome.runtime.sendMessage({ action: "STOP_CAPTURE" }, () => window.close());
+});
+
+els.btnPartial.addEventListener("click", () => {
+  // Abandon the running full-page capture and restart it as a region pick.
+  chrome.runtime.sendMessage({ action: "STOP_CAPTURE" }, () => {
+    triggerCapture("region");
+  });
 });
 
 chrome.runtime.onMessage.addListener((msg) => {

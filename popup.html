@@ -174,7 +174,34 @@
       .status-sub {
         font-size: 11px;
         color: var(--muted);
-        margin-bottom: 24px;
+        margin-bottom: 14px;
+      }
+
+      .btn-partial {
+        width: 100%;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        background: var(--surface);
+        border: 1px dashed var(--border-light);
+        color: var(--muted);
+        font-size: 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: 0.12s;
+      }
+      .btn-partial:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+      .btn-partial-cta {
+        margin-left: auto;
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 11px;
+        white-space: nowrap;
       }
 
       .btn-stop {
@@ -554,11 +581,21 @@
         <div class="doc-box-inner"></div>
       </div>
 
-      <div class="status-heading" id="captureStatusText">Warming up</div>
+      <div class="status-heading" id="captureStatusText">Idle</div>
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="captureProgressBar"></div>
       </div>
       <div class="status-sub">capture keeps running — reopen to see progress</div>
+
+      <button class="btn-partial" id="btnPartial">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18" />
+          <path d="M9 3v18" />
+        </svg>
+        <span>Only need part of the page?</span>
+        <span class="btn-partial-cta">Switch to region</span>
+      </button>
 
       <button class="btn-stop" id="btnStopCapture">
         <svg viewBox="0 0 24 24">
