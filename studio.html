@@ -315,12 +315,77 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 10px;
         font-size: 12px;
       }
       .row-label {
         display: flex;
         align-items: center;
         gap: 7px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+      }
+      .field-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .field-value {
+        font-family: monospace;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .row select {
+        width: 150px;
+        flex: none;
+      }
+      .sub-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .link-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--text);
+        font-size: 11px;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .link-btn:hover {
+        color: var(--muted);
+      }
+      .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin: 0;
+        font-size: 11px;
+      }
+      .meta-row {
+        display: grid;
+        grid-template-columns: 58px 1fr;
+        gap: 8px;
+        align-items: start;
+      }
+      .meta-row dt {
+        color: var(--muted);
+      }
+      .meta-row dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      [hidden] {
+        display: none !important;
       }
       input[type="text"],
       select {
@@ -331,11 +396,16 @@
         border-radius: 5px;
         font-size: 12px;
         width: 100%;
+        min-width: 0;
         outline: none;
+      }
+      input[type="text"] {
+        text-overflow: ellipsis;
       }
       input[type="range"] {
         accent-color: var(--accent);
         cursor: pointer;
+        width: 100%;
       }
       .switch {
         position: relative;
@@ -710,31 +780,23 @@
               ></span
             ></label>
           </div>
-          <div class="row">
-            <label class="row-label" for="padRange">Backdrop Padding</label>
-            <input
-              type="range"
-              id="padRange"
-              min="0"
-              max="90"
-              value="0"
-              style="width: 110px"
-            />
+          <div class="field">
+            <div class="field-head">
+              <label for="padRange">Backdrop Padding</label>
+              <span class="field-value" id="padVal">0 px</span>
+            </div>
+            <input type="range" id="padRange" min="0" max="90" value="0" />
           </div>
-          <div class="row">
-            <label class="row-label" for="radiusRange">Corner Rounding</label>
-            <input
-              type="range"
-              id="radiusRange"
-              min="0"
-              max="28"
-              value="0"
-              style="width: 110px"
-            />
+          <div class="field">
+            <div class="field-head">
+              <label for="radiusRange">Corner Rounding</label>
+              <span class="field-value" id="radiusVal">0 px</span>
+            </div>
+            <input type="range" id="radiusRange" min="0" max="28" value="0" />
           </div>
           <div class="row">
             <label class="row-label" for="gradientSelect">Backdrop Style</label>
-            <select id="gradientSelect" style="width: 135px">
+            <select id="gradientSelect">
               <option value="solid">Solid Color</option>
               <option value="emerald">Emerald Glow</option>
               <option value="sunset">Sunset Mesh</option>
@@ -743,13 +805,13 @@
               <option value="royal">Royal Violet</option>
             </select>
           </div>
-          <div class="row">
+          <div class="row" id="bgColorRow">
             <label class="row-label" for="bgColor">Solid Backdrop Color</label>
             <input type="color" id="bgColor" value="#18181b" />
           </div>
           <div class="row">
             <label class="row-label" for="filterSelect">Color Filter</label>
-            <select id="filterSelect" style="width: 135px">
+            <select id="filterSelect">
               <option value="none">Original</option>
               <option value="grayscale(100%)">Monochrome</option>
               <option value="sepia(80%)">Warm Sepia</option>
@@ -760,53 +822,60 @@
 
         <div class="group">
           <div class="group-title">Output & PDF Mode</div>
-          <input
-            type="text"
-            id="fileNameInput"
-            placeholder="Enter filename..."
-          />
+          <div class="field">
+            <div class="field-head">
+              <label for="fileNameInput">File Name</label>
+              <button
+                type="button"
+                class="link-btn"
+                id="btnFileNameAuto"
+                title="Restore the generated file name"
+              >
+                Auto
+              </button>
+            </div>
+            <input
+              type="text"
+              id="fileNameInput"
+              placeholder="Enter filename..."
+            />
+          </div>
           <div class="row">
             <label for="pdfModeSelect">PDF Layout</label>
-            <select id="pdfModeSelect" style="width: 145px">
+            <select id="pdfModeSelect">
               <option value="a4">A4 Paginated Pages</option>
               <option value="single">Single Tall Page</option>
             </select>
           </div>
-          <div class="row">
-            <label for="qualityRange">Image Quality</label>
-            <span
-              id="qualityVal"
-              style="font-family: monospace; color: var(--muted)"
-              >92%</span
-            >
+          <div class="field">
+            <div class="field-head">
+              <label for="qualityRange">Image Quality</label>
+              <span class="field-value" id="qualityVal">92%</span>
+            </div>
+            <input type="range" id="qualityRange" min="10" max="100" value="92" />
           </div>
-          <input type="range" id="qualityRange" min="10" max="100" value="92" />
         </div>
 
         <div class="group">
           <div class="group-title">Export & Developer Actions</div>
+          <div class="sub-title">Save to file</div>
           <div class="export-grid">
             <button class="btn-export primary" id="dlPng">Download PNG</button>
             <button class="btn-export" id="dlJpg">JPEG</button>
             <button class="btn-export" id="dlWebp">WebP</button>
             <button class="btn-export" id="dlPdf">Save PDF</button>
+            <button class="btn-export" id="btnPrint">Print</button>
+          </div>
+          <div class="sub-title">Copy</div>
+          <div class="export-grid">
             <button class="btn-export" id="btnCopy">Copy Image</button>
             <button class="btn-export" id="btnBase64">Copy Base64</button>
-            <button class="btn-export" id="btnPrint">Print</button>
           </div>
         </div>
 
         <div class="group">
           <div class="group-title">Capture Metadata</div>
-          <div
-            id="metaInfo"
-            style="
-              font-size: 11px;
-              color: var(--muted);
-              line-height: 1.5;
-              word-break: break-all;
-            "
-          ></div>
+          <dl class="meta" id="metaInfo"></dl>
         </div>
       </div>
     </div>

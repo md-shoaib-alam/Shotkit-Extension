@@ -21,11 +21,15 @@ const ui = {
   chkMac: document.getElementById("chkMacFrame"),
   chkWatermark: document.getElementById("chkWatermark"),
   padRange: document.getElementById("padRange"),
+  padVal: document.getElementById("padVal"),
   radiusRange: document.getElementById("radiusRange"),
+  radiusVal: document.getElementById("radiusVal"),
   gradientSelect: document.getElementById("gradientSelect"),
   bgColor: document.getElementById("bgColor"),
+  bgColorRow: document.getElementById("bgColorRow"),
   filterSelect: document.getElementById("filterSelect"),
   fileName: document.getElementById("fileNameInput"),
+  fileNameAuto: document.getElementById("btnFileNameAuto"),
   pdfMode: document.getElementById("pdfModeSelect"),
   qualityRange: document.getElementById("qualityRange"),
   qualityVal: document.getElementById("qualityVal"),
@@ -283,20 +287,34 @@ function loadImg(src) {
   });
 }
 
+function defaultFileName(cap) {
+  const cleanTitle = (cap.title || "screenshot")
+    .replace(/[^a-z0-9-_]/gi, "_")
+    .slice(0, 40);
+  return `Shotkit_${cleanTitle}_${Date.now()}`;
+}
+
+function setFileName(name) {
+  ui.fileName.value = name;
+  ui.fileName.title = name;
+}
+
+function metaRow(label, value) {
+  return `<div class="meta-row"><dt>${label}</dt><dd title="${escapeHtml(
+    value,
+  )}">${escapeHtml(value)}</dd></div>`;
+}
+
 function loadCaptureIntoStudio(cap) {
   captureMeta = cap;
   annotations = [];
   stepCounter = 1;
   ui.colorPill.classList.remove("open");
-  const cleanTitle = (cap.title || "screenshot")
-    .replace(/[^a-z0-9-_]/gi, "_")
-    .slice(0, 40);
-  ui.fileName.value = `Shotkit_${cleanTitle}_${Date.now()}`;
-  ui.metaInfo.innerHTML = `
-    <div><strong>Title:</strong> ${escapeHtml(cap.title || "Untitled")}</div>
-    <div><strong>URL:</strong> ${escapeHtml(cap.url || "N/A")}</div>
-    <div><strong>Captured:</strong> ${escapeHtml(cap.timestamp || "")}</div>
-  `;
+  setFileName(defaultFileName(cap));
+  ui.metaInfo.innerHTML =
+    metaRow("Title", cap.title || "Untitled") +
+    metaRow("URL", cap.url || "N/A") +
+    metaRow("Captured", cap.timestamp || "");
   setBaseImage(cap.dataUrl);
 }
 function renderHistoryList(items, persistDeletes = true) {
@@ -400,8 +418,31 @@ document.querySelectorAll(".tool-btn[data-tool]").forEach((btn) => {
   el.addEventListener("change", renderComposite);
 });
 
-ui.qualityRange.addEventListener("input", () => {
-  ui.qualityVal.textContent = `${ui.qualityRange.value}%`;
+function bindRangeReadout(range, readout, format) {
+  const sync = () => {
+    readout.textContent = format(range.value);
+  };
+  range.addEventListener("input", sync);
+  sync();
+}
+
+bindRangeReadout(ui.qualityRange, ui.qualityVal, (v) => `${v}%`);
+bindRangeReadout(ui.padRange, ui.padVal, (v) => `${v} px`);
+bindRangeReadout(ui.radiusRange, ui.radiusVal, (v) => `${v} px`);
+
+// The solid colour only reaches fillBackdrop when the style is "solid", so
+// showing it beside a gradient offers a change that cannot do anything.
+function syncBackdropColorRow() {
+  ui.bgColorRow.hidden = ui.gradientSelect.value !== "solid";
+}
+ui.gradientSelect.addEventListener("input", syncBackdropColorRow);
+syncBackdropColorRow();
+
+ui.fileNameAuto.addEventListener("click", () =>
+  setFileName(defaultFileName(captureMeta)),
+);
+ui.fileName.addEventListener("input", () => {
+  ui.fileName.title = ui.fileName.value;
 });
 
 function fillBackdrop(w, h) {
@@ -892,6 +933,7 @@ window.addEventListener("mouseup", (e) => {
       annotations = [];
       stepCounter = 1;
       ui.padRange.value = 0;
+      ui.padRange.dispatchEvent(new Event("input"));
       ui.chkMac.checked = false;
       ui.chkWatermark.checked = false;
       setBaseImage(temp.toDataURL("image/png"));
